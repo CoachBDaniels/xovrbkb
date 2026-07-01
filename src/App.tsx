@@ -222,14 +222,14 @@ function TeamViewInner({ team, onBack }) {
       </div>
       <div style={{ padding: 24, maxWidth: 600, margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4, marginBottom: 20 }}>
-          {tabBtn('home', 'Home')}
-          {tabBtn('roster', 'Roster')}
-          {tabBtn('opponents', 'Opponents')}
-          {tabBtn('seasons', 'Seasons')}
-          {tabBtn('practices', 'Practices')}
-          {tabBtn('libraries', 'Config')}
-          {tabBtn('theme', 'Theme')}
-          {tabBtn('game', 'Game')}
+          {tabBtn('home', 'HOME')}
+          {tabBtn('seasons', 'SZN')}
+          {tabBtn('practices', 'PRAC')}
+          {tabBtn('roster', 'RSTR')}
+          {tabBtn('opponents', 'OPNT')}
+          {tabBtn('libraries', 'CNFG')}
+          {tabBtn('theme', 'THEME')}
+          {tabBtn('game', 'GAME')}
         </div>
         {tab === 'home' && <HomeDashboard team={team} role={team.role} onNavigateToTab={setTab} />}
         {tab === 'roster' && <RosterScreen team={team} role={team.role} />}
@@ -237,12 +237,12 @@ function TeamViewInner({ team, onBack }) {
         {tab === 'seasons' && <SeasonsScreen team={team} role={team.role} />}
         {tab === 'practices' && (currentSeason
           ? <PracticesScreen team={team} season={currentSeason} />
-          : <p>Create a season first (Seasons tab).</p>)}
+          : <p>Create a season first (SZN tab).</p>)}
         {tab === 'libraries' && <LibrariesScreen team={team} role={team.role} />}
         {tab === 'theme' && <ThemeSettingsScreen team={team} role={team.role} />}
         {tab === 'game' && (currentSeason
           ? <GameScreen team={team} season={currentSeason} />
-          : <p>Create a season first (Seasons tab).</p>)}
+          : <p>Create a season first (SZN tab).</p>)}
       </div>
     </div>
   );
@@ -261,7 +261,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [teams, setTeams] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
-  const [homeTheme, setHomeTheme] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState('signin');
@@ -280,16 +279,6 @@ function App() {
     });
   }, [session]);
 
-  useEffect(() => {
-    if (teams.length === 0) return;
-    (async () => {
-      const { data: teamRow } = await supabase.from('teams').select('organization_id').eq('id', teams[0].id).single();
-      if (!teamRow?.organization_id) return;
-      const { data: themeRow } = await supabase.from('theme_settings').select('theme').eq('organization_id', teamRow.organization_id).maybeSingle();
-      if (themeRow?.theme) setHomeTheme(themeRow.theme);
-    })();
-  }, [teams]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -304,52 +293,81 @@ function App() {
 
   const handleSignOut = async () => { setSelectedTeam(null); await supabase.auth.signOut(); };
 
-  const FALLBACK = { navyDark: '#0d1b2e', navyMid: '#162d50', border: '#243d6b', gold: '#c8a84b', text: '#e8edf5', muted: '#8a99b8', green: '#15803d', navy: '#1a3a6b', textDark: '#1a1a1a' };
-  const pageStyle = { minHeight: '100vh', background: FALLBACK.navyDark, color: FALLBACK.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 };
-  const inputStyle = { padding: 10, background: FALLBACK.navyMid, border: `1px solid ${FALLBACK.border}`, borderRadius: 7, color: FALLBACK.text };
+  const XOVR = {
+    bg: '#000000',
+    gold: '#e7b977',
+    goldDim: '#a07a3a',
+    text: '#ffffff',
+    muted: 'rgba(255,255,255,0.5)',
+    inputBg: '#111111',
+    inputBorder: '#333333',
+    teal: '#00333c',
+  };
 
-  if (loading) return <div style={pageStyle}>Loading...</div>;
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: XOVR.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: XOVR.gold, fontFamily: 'sans-serif' }}>Loading...</div>
+    </div>
+  );
 
   if (!session) {
     return (
-      <div style={pageStyle}>
-        <div style={{ fontSize: 12, color: FALLBACK.gold, fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Briarwood Lions</div>
-        <h2 style={{ marginTop: 0, marginBottom: 24 }}>{mode === 'signup' ? 'Create Account' : 'Sign In'}</h2>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 280 }}>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} />
-          <button type="submit" style={{ padding: 10, fontWeight: 'bold', background: FALLBACK.gold, color: FALLBACK.textDark, border: 'none', borderRadius: 7, cursor: 'pointer' }}>
+      <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+        <div style={{ width: 120, height: 120, borderRadius: '50%', background: XOVR.teal, border: `3px solid ${XOVR.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: XOVR.gold, letterSpacing: 2 }}>XOVR</div>
+            <div style={{ fontSize: 9, color: XOVR.text, letterSpacing: 1, textTransform: 'uppercase' }}>Basketball</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>Powered by XOVR</div>
+        <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 900, color: XOVR.gold, letterSpacing: 1 }}>
+          {mode === 'signup' ? 'Create Account' : 'Welcome Back'}
+        </h2>
+        <div style={{ fontSize: 12, color: XOVR.muted, marginBottom: 28 }}>
+          {mode === 'signup' ? 'Join your team on XOVR' : 'Sign in to your team'}
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 300 }}>
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required
+            style={{ padding: '12px 14px', background: XOVR.inputBg, border: `1px solid ${XOVR.inputBorder}`, borderRadius: 10, color: XOVR.text, fontSize: 14, outline: 'none' }} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
+            style={{ padding: '12px 14px', background: XOVR.inputBg, border: `1px solid ${XOVR.inputBorder}`, borderRadius: 10, color: XOVR.text, fontSize: 14, outline: 'none' }} />
+          <button type="submit"
+            style={{ padding: '13px', fontWeight: 800, fontSize: 14, letterSpacing: 1, background: XOVR.gold, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', textTransform: 'uppercase' }}>
             {mode === 'signup' ? 'Sign Up' : 'Sign In'}
           </button>
         </form>
-        {message && <p style={{ marginTop: 10, color: message.startsWith('Error') ? '#ff6b6b' : FALLBACK.green }}>{message}</p>}
-        <button onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')} style={{ marginTop: 10, background: 'none', border: 'none', color: FALLBACK.gold, cursor: 'pointer' }}>
+        {message && <p style={{ marginTop: 12, fontSize: 13, color: message.startsWith('Error') ? '#ff6b6b' : XOVR.gold, textAlign: 'center' }}>{message}</p>}
+        <button onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
+          style={{ marginTop: 16, background: 'none', border: 'none', color: XOVR.goldDim, cursor: 'pointer', fontSize: 13 }}>
           {mode === 'signup' ? 'Already have an account? Sign in' : "Need an account? Sign up"}
         </button>
+        <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>XOVR BASKETBALL © 2026</div>
       </div>
     );
   }
 
   if (selectedTeam) return <TeamView team={selectedTeam} onBack={() => setSelectedTeam(null)} />;
 
-  const homeBgColor = homeTheme?.homeBg || FALLBACK.navyDark;
-  const homePageStyle = { ...pageStyle, background: homeBgColor };
-
   return (
-    <div style={homePageStyle}>
-      {homeTheme?.homeLogo && (
-        <img src={homeTheme.homeLogo} alt="" style={{ width: homeTheme.homeLogoSize || 96, height: 'auto', marginBottom: 14 }} />
-      )}
-      <div style={{ fontSize: 12, color: FALLBACK.gold, fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>{homeTheme?.teamName || 'Briarwood Lions'}</div>
-      <h2 style={{ marginTop: 0 }}>Basketball</h2>
-      <p style={{ color: FALLBACK.muted, marginBottom: 20 }}>Signed in as {session.user.email}</p>
-      <div style={{ fontSize: 11, color: FALLBACK.muted, fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Choose a Team</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 280 }}>
+    <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+      <div style={{ width: 80, height: 80, borderRadius: '50%', background: XOVR.teal, border: `2px solid ${XOVR.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 900, color: XOVR.gold, letterSpacing: 2 }}>XOVR</div>
+          <div style={{ fontSize: 7, color: XOVR.text, letterSpacing: 1 }}>BASKETBALL</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: XOVR.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
+      <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
         {teams.map(t => (
-          <button key={t.id} onClick={() => setSelectedTeam(t)} style={{ padding: 14, fontSize: 16, background: FALLBACK.navy, color: FALLBACK.text, border: `1px solid ${FALLBACK.gold}`, borderRadius: 8, cursor: 'pointer' }}>{t.name}</button>
+          <button key={t.id} onClick={() => setSelectedTeam(t)}
+            style={{ padding: 14, fontSize: 15, fontWeight: 700, background: '#111', color: XOVR.text, border: `1px solid ${XOVR.gold}`, borderRadius: 10, cursor: 'pointer', letterSpacing: 0.5 }}>
+            {t.name}
+          </button>
         ))}
       </div>
-      <button onClick={handleSignOut} style={{ marginTop: 30, background: 'none', border: 'none', color: FALLBACK.muted, cursor: 'pointer', textDecoration: 'underline' }}>Sign Out</button>
+      <button onClick={handleSignOut} style={{ marginTop: 30, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Sign Out</button>
+      <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>XOVR BASKETBALL © 2026</div>
     </div>
   );
 }
