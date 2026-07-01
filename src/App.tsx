@@ -150,9 +150,7 @@ function OpponentsScreen({ team, role }) {
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleLogoUpload(o.id, e)} />
                   </label>
                 </div>
-                <button onClick={() => setEditingId(null)} style={{ width: '100%', padding: 8, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
-                  Done
-                </button>
+                <button onClick={() => setEditingId(null)} style={{ width: '100%', padding: 8, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Done</button>
               </>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -256,45 +254,95 @@ function TeamView({ team, onBack }) {
   );
 }
 
-// ─── Basketball Court SVG Background ───────────────────────────────────────
+// ─── Full Court SVG — top-down view matching mockup ────────────────────────
 function CourtBackground() {
+  const W = 1080, H = 660;
+  const stroke = '#1a5566';
+  const sw = 2.5;
+
+  // Court proportions (NBA-ish scaled to viewBox)
+  // Full court: sidelines top/bottom, baselines left/right
+  const margin = 30;
+  const courtL = margin, courtR = W - margin, courtT = margin, courtB = H - margin;
+  const courtW = courtR - courtL, courtH = courtB - courtT;
+
+  // Half court x
+  const midX = W / 2;
+  const midY = H / 2;
+
+  // Keys — 16ft wide, 19ft long scaled
+  const keyW = courtH * 0.33;   // width of key (along baseline)
+  const keyD = courtW * 0.175;  // depth of key into court
+  const keyTop = midY - keyW / 2;
+  const keyBot = midY + keyW / 2;
+
+  // Free throw circle radius
+  const ftR = keyW * 0.52;
+
+  // Basket
+  const rimR = 10;
+  const basketOffset = 50; // from baseline
+
+  // Three point line — corner portion + arc
+  // NBA: corners at ~14ft from baseline, arc radius ~23.75ft
+  const tpCornerY = courtH * 0.155; // corner distance from sideline
+  const tpArcR = courtW * 0.285;
+
   return (
-    <svg viewBox="0 0 1080 660" xmlns="http://www.w3.org/2000/svg"
+    <svg viewBox={`0 0 ${W} ${H}`} xmlns="http://www.w3.org/2000/svg"
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}>
-      {/* Background */}
-      <rect width="1080" height="660" fill="#00333c" />
+      {/* Background fill */}
+      <rect width={W} height={H} fill="#00333c" />
+
       {/* Outer boundary */}
-      <rect x="30" y="30" width="1020" height="600" fill="none" stroke="#1a5566" strokeWidth="3" />
+      <rect x={courtL} y={courtT} width={courtW} height={courtH} fill="none" stroke={stroke} strokeWidth={sw} />
+
       {/* Half court line */}
-      <line x1="540" y1="30" x2="540" y2="630" stroke="#1a5566" strokeWidth="2" />
+      <line x1={midX} y1={courtT} x2={midX} y2={courtB} stroke={stroke} strokeWidth={sw} />
+
       {/* Center circle */}
-      <circle cx="540" cy="330" r="90" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <circle cx="540" cy="330" r="8" fill="#1a5566" />
-      {/* Left key */}
-      <rect x="30" y="215" width="190" height="230" fill="none" stroke="#1a5566" strokeWidth="2" />
-      {/* Left free throw circle */}
-      <path d="M220 215 A115 115 0 0 1 220 445" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <path d="M220 215 A115 115 0 0 0 220 445" fill="none" stroke="#1a5566" strokeWidth="2" strokeDasharray="10 8" />
+      <circle cx={midX} cy={midY} r={courtH * 0.09} fill="none" stroke={stroke} strokeWidth={sw} />
+      <circle cx={midX} cy={midY} r={5} fill={stroke} />
+
+      {/* ── LEFT SIDE ── */}
+      {/* Left key box */}
+      <rect x={courtL} y={midY - keyW / 2} width={keyD} height={keyW} fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Left free throw circle — solid top half, dashed bottom */}
+      <path d={`M ${courtL + keyD} ${midY - ftR} A ${ftR} ${ftR} 0 0 1 ${courtL + keyD} ${midY + ftR}`} fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d={`M ${courtL + keyD} ${midY - ftR} A ${ftR} ${ftR} 0 0 0 ${courtL + keyD} ${midY + ftR}`} fill="none" stroke={stroke} strokeWidth={sw} strokeDasharray="10 7" />
       {/* Left basket */}
-      <circle cx="80" cy="330" r="22" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <line x1="30" y1="310" x2="30" y2="350" stroke="#1a5566" strokeWidth="3" />
-      {/* Left three point arc */}
-      <path d="M30 110 L30 550" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <path d="M30 110 A310 310 0 0 1 30 550" fill="none" stroke="#1a5566" strokeWidth="2" />
-      {/* Right key */}
-      <rect x="860" y="215" width="190" height="230" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <circle cx={courtL + basketOffset} cy={midY} r={rimR} fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Left backboard */}
+      <line x1={courtL + basketOffset - 18} y1={midY - 26} x2={courtL + basketOffset - 18} y2={midY + 26} stroke={stroke} strokeWidth={sw + 1} />
+      {/* Left three point — corner straights + arc */}
+      <line x1={courtL} y1={courtT + tpCornerY} x2={courtL + keyD * 1.55} y2={courtT + tpCornerY} stroke={stroke} strokeWidth={sw} />
+      <line x1={courtL} y1={courtB - tpCornerY} x2={courtL + keyD * 1.55} y2={courtB - tpCornerY} stroke={stroke} strokeWidth={sw} />
+      <path
+        d={`M ${courtL + keyD * 1.55} ${courtT + tpCornerY} A ${tpArcR} ${tpArcR} 0 0 1 ${courtL + keyD * 1.55} ${courtB - tpCornerY}`}
+        fill="none" stroke={stroke} strokeWidth={sw}
+      />
+      {/* Left restricted arc */}
+      <path d={`M ${courtL + basketOffset} ${midY - 38} A 38 38 0 0 1 ${courtL + basketOffset} ${midY + 38}`} fill="none" stroke={stroke} strokeWidth={sw - 0.5} strokeDasharray="6 5" />
+
+      {/* ── RIGHT SIDE ── */}
+      {/* Right key box */}
+      <rect x={courtR - keyD} y={midY - keyW / 2} width={keyD} height={keyW} fill="none" stroke={stroke} strokeWidth={sw} />
       {/* Right free throw circle */}
-      <path d="M860 215 A115 115 0 0 0 860 445" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <path d="M860 215 A115 115 0 0 1 860 445" fill="none" stroke="#1a5566" strokeWidth="2" strokeDasharray="10 8" />
+      <path d={`M ${courtR - keyD} ${midY - ftR} A ${ftR} ${ftR} 0 0 0 ${courtR - keyD} ${midY + ftR}`} fill="none" stroke={stroke} strokeWidth={sw} />
+      <path d={`M ${courtR - keyD} ${midY - ftR} A ${ftR} ${ftR} 0 0 1 ${courtR - keyD} ${midY + ftR}`} fill="none" stroke={stroke} strokeWidth={sw} strokeDasharray="10 7" />
       {/* Right basket */}
-      <circle cx="1000" cy="330" r="22" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <line x1="1050" y1="310" x2="1050" y2="350" stroke="#1a5566" strokeWidth="3" />
-      {/* Right three point arc */}
-      <path d="M1050 110 L1050 550" fill="none" stroke="#1a5566" strokeWidth="2" />
-      <path d="M1050 110 A310 310 0 0 0 1050 550" fill="none" stroke="#1a5566" strokeWidth="2" />
-      {/* Restricted areas */}
-      <path d="M80 308 A22 22 0 0 1 80 352" fill="none" stroke="#1a5566" strokeWidth="1.5" strokeDasharray="5 4" />
-      <path d="M1000 308 A22 22 0 0 0 1000 352" fill="none" stroke="#1a5566" strokeWidth="1.5" strokeDasharray="5 4" />
+      <circle cx={courtR - basketOffset} cy={midY} r={rimR} fill="none" stroke={stroke} strokeWidth={sw} />
+      {/* Right backboard */}
+      <line x1={courtR - basketOffset + 18} y1={midY - 26} x2={courtR - basketOffset + 18} y2={midY + 26} stroke={stroke} strokeWidth={sw + 1} />
+      {/* Right three point — corner straights + arc */}
+      <line x1={courtR} y1={courtT + tpCornerY} x2={courtR - keyD * 1.55} y2={courtT + tpCornerY} stroke={stroke} strokeWidth={sw} />
+      <line x1={courtR} y1={courtB - tpCornerY} x2={courtR - keyD * 1.55} y2={courtB - tpCornerY} stroke={stroke} strokeWidth={sw} />
+      <path
+        d={`M ${courtR - keyD * 1.55} ${courtT + tpCornerY} A ${tpArcR} ${tpArcR} 0 0 0 ${courtR - keyD * 1.55} ${courtB - tpCornerY}`}
+        fill="none" stroke={stroke} strokeWidth={sw}
+      />
+      {/* Right restricted arc */}
+      <path d={`M ${courtR - basketOffset} ${midY - 38} A 38 38 0 0 0 ${courtR - basketOffset} ${midY + 38}`} fill="none" stroke={stroke} strokeWidth={sw - 0.5} strokeDasharray="6 5" />
     </svg>
   );
 }
@@ -308,7 +356,6 @@ function App() {
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState('signin');
   const [message, setMessage] = useState('');
-  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
@@ -339,7 +386,7 @@ function App() {
     if (!email) { setMessage('Enter your email above first.'); return; }
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) setMessage('Error: ' + error.message);
-    else { setForgotSent(true); setMessage('Password reset email sent!'); }
+    else setMessage('Password reset email sent!');
   };
 
   const handleSignOut = async () => { setSelectedTeam(null); await supabase.auth.signOut(); };
@@ -347,11 +394,13 @@ function App() {
   const XOVR = {
     teal: '#00333c',
     gold: '#e7b977',
-    goldLight: '#f5d08a',
     text: '#ffffff',
     muted: 'rgba(255,255,255,0.45)',
-    inputBg: 'rgba(0,0,0,0.25)',
+    inputBg: 'rgba(0,0,0,0.2)',
   };
+
+  // ── LOGO URL — update this after uploading the PNG to Supabase Assets bucket ──
+  const LOGO_URL = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple_Illustration_Basketball_Sports_Academy_Circle_Logo.png';
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: XOVR.teal, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -364,14 +413,13 @@ function App() {
       <div style={{ minHeight: '100vh', background: XOVR.teal, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Top half — court background with logo */}
-        <div style={{ position: 'relative', height: '45vh', minHeight: 260, overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ position: 'relative', height: '48vh', minHeight: 280, overflow: 'hidden', flexShrink: 0 }}>
           <CourtBackground />
-          {/* Logo centered over court */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img
-              src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg"
+              src={LOGO_URL}
               alt="XOVR Basketball"
-              style={{ width: 220, height: 220, objectFit: 'contain', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.7))' }}
+              style={{ width: 240, height: 240, objectFit: 'contain', filter: 'drop-shadow(0 6px 28px rgba(0,0,0,0.8))' }}
             />
           </div>
         </div>
@@ -381,12 +429,12 @@ function App() {
 
           {/* WELCOME, COACH! */}
           <div style={{
-            fontSize: 32, fontWeight: 900, marginBottom: 28, textAlign: 'center',
+            fontSize: 30, fontWeight: 900, marginBottom: 26, textAlign: 'center',
             color: XOVR.gold,
-            fontFamily: "'Georgia', 'Times New Roman', serif",
-            textShadow: `-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 0 rgba(0,0,0,0.5)`,
-            letterSpacing: 2,
-            WebkitTextStroke: '1px #000',
+            WebkitTextStroke: '1.5px #000',
+            textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 3px 6px rgba(0,0,0,0.5)',
+            letterSpacing: 3,
+            fontStyle: 'italic',
           }}>
             {mode === 'signup' ? 'CREATE ACCOUNT' : 'WELCOME, COACH!'}
           </div>
@@ -400,7 +448,7 @@ function App() {
               onChange={e => setEmail(e.target.value)}
               required
               style={{
-                padding: '16px 20px',
+                padding: '15px 22px',
                 background: XOVR.inputBg,
                 border: `2px solid ${XOVR.gold}`,
                 borderRadius: 50,
@@ -418,7 +466,7 @@ function App() {
               onChange={e => setPassword(e.target.value)}
               required
               style={{
-                padding: '16px 20px',
+                padding: '15px 22px',
                 background: XOVR.inputBg,
                 border: `2px solid ${XOVR.gold}`,
                 borderRadius: 50,
@@ -430,21 +478,19 @@ function App() {
               }}
             />
 
-            {/* Forgot Password */}
             {mode === 'signin' && (
-              <div style={{ textAlign: 'center', marginTop: -4 }}>
+              <div style={{ textAlign: 'center', marginTop: -6 }}>
                 <button type="button" onClick={handleForgotPassword}
-                  style={{ background: 'none', border: 'none', color: XOVR.text, fontSize: 13, cursor: 'pointer', opacity: 0.7 }}>
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 13, cursor: 'pointer' }}>
                   Forgot Password?
                 </button>
               </div>
             )}
 
-            {/* Login button */}
             <button type="submit"
               style={{
-                marginTop: 10,
-                padding: '16px',
+                marginTop: 8,
+                padding: '15px',
                 fontWeight: 900,
                 fontSize: 18,
                 background: XOVR.gold,
@@ -453,9 +499,9 @@ function App() {
                 borderRadius: 50,
                 cursor: 'pointer',
                 letterSpacing: 1,
-                width: '60%',
+                width: '55%',
                 alignSelf: 'center',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
               }}>
               {mode === 'signup' ? 'Sign Up' : 'Login'}
             </button>
@@ -467,10 +513,9 @@ function App() {
             </p>
           )}
 
-          {/* Toggle signup/signin */}
           <button onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setMessage(''); }}
-            style={{ marginTop: 20, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', fontSize: 13 }}>
-            {mode === 'signup' ? 'Already have an account? Sign in' : "Need an account? Sign up"}
+            style={{ marginTop: 18, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', fontSize: 13 }}>
+            {mode === 'signup' ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
           </button>
 
           <div style={{ marginTop: 'auto', paddingTop: 24, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>
@@ -485,11 +530,7 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: XOVR.teal, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-      <img
-        src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg"
-        alt="XOVR Basketball"
-        style={{ width: 100, height: 100, marginBottom: 16 }}
-      />
+      <img src={LOGO_URL} alt="XOVR Basketball" style={{ width: 100, height: 100, marginBottom: 16, objectFit: 'contain' }} />
       <div style={{ fontSize: 11, color: XOVR.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
       <div style={{ fontSize: 13, color: XOVR.gold, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
