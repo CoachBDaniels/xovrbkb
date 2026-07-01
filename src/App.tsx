@@ -256,6 +256,49 @@ function TeamView({ team, onBack }) {
   );
 }
 
+// ─── Basketball Court SVG Background ───────────────────────────────────────
+function CourtBackground() {
+  return (
+    <svg viewBox="0 0 1080 660" xmlns="http://www.w3.org/2000/svg"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}>
+      {/* Background */}
+      <rect width="1080" height="660" fill="#00333c" />
+      {/* Outer boundary */}
+      <rect x="30" y="30" width="1020" height="600" fill="none" stroke="#1a5566" strokeWidth="3" />
+      {/* Half court line */}
+      <line x1="540" y1="30" x2="540" y2="630" stroke="#1a5566" strokeWidth="2" />
+      {/* Center circle */}
+      <circle cx="540" cy="330" r="90" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <circle cx="540" cy="330" r="8" fill="#1a5566" />
+      {/* Left key */}
+      <rect x="30" y="215" width="190" height="230" fill="none" stroke="#1a5566" strokeWidth="2" />
+      {/* Left free throw circle */}
+      <path d="M220 215 A115 115 0 0 1 220 445" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <path d="M220 215 A115 115 0 0 0 220 445" fill="none" stroke="#1a5566" strokeWidth="2" strokeDasharray="10 8" />
+      {/* Left basket */}
+      <circle cx="80" cy="330" r="22" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <line x1="30" y1="310" x2="30" y2="350" stroke="#1a5566" strokeWidth="3" />
+      {/* Left three point arc */}
+      <path d="M30 110 L30 550" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <path d="M30 110 A310 310 0 0 1 30 550" fill="none" stroke="#1a5566" strokeWidth="2" />
+      {/* Right key */}
+      <rect x="860" y="215" width="190" height="230" fill="none" stroke="#1a5566" strokeWidth="2" />
+      {/* Right free throw circle */}
+      <path d="M860 215 A115 115 0 0 0 860 445" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <path d="M860 215 A115 115 0 0 1 860 445" fill="none" stroke="#1a5566" strokeWidth="2" strokeDasharray="10 8" />
+      {/* Right basket */}
+      <circle cx="1000" cy="330" r="22" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <line x1="1050" y1="310" x2="1050" y2="350" stroke="#1a5566" strokeWidth="3" />
+      {/* Right three point arc */}
+      <path d="M1050 110 L1050 550" fill="none" stroke="#1a5566" strokeWidth="2" />
+      <path d="M1050 110 A310 310 0 0 0 1050 550" fill="none" stroke="#1a5566" strokeWidth="2" />
+      {/* Restricted areas */}
+      <path d="M80 308 A22 22 0 0 1 80 352" fill="none" stroke="#1a5566" strokeWidth="1.5" strokeDasharray="5 4" />
+      <path d="M1000 308 A22 22 0 0 0 1000 352" fill="none" stroke="#1a5566" strokeWidth="1.5" strokeDasharray="5 4" />
+    </svg>
+  );
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -265,6 +308,7 @@ function App() {
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState('signin');
   const [message, setMessage] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
@@ -291,52 +335,148 @@ function App() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) { setMessage('Enter your email above first.'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) setMessage('Error: ' + error.message);
+    else { setForgotSent(true); setMessage('Password reset email sent!'); }
+  };
+
   const handleSignOut = async () => { setSelectedTeam(null); await supabase.auth.signOut(); };
 
   const XOVR = {
-    bg: '#000000',
-    gold: '#e7b977',
-    goldDim: '#a07a3a',
-    text: '#ffffff',
-    muted: 'rgba(255,255,255,0.5)',
-    inputBg: '#111111',
-    inputBorder: '#333333',
     teal: '#00333c',
+    gold: '#e7b977',
+    goldLight: '#f5d08a',
+    text: '#ffffff',
+    muted: 'rgba(255,255,255,0.45)',
+    inputBg: 'rgba(0,0,0,0.25)',
   };
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: XOVR.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: XOVR.gold, fontFamily: 'sans-serif' }}>Loading...</div>
+    <div style={{ minHeight: '100vh', background: XOVR.teal, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: XOVR.gold, fontFamily: 'sans-serif', fontSize: 16, letterSpacing: 2 }}>Loading...</div>
     </div>
   );
 
   if (!session) {
     return (
-      <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-        <img src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg" alt="XOVR Basketball" style={{ width: 140, height: 140, marginBottom: 20 }} />
-        <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>Powered by XOVR</div>
-        <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 900, color: XOVR.gold, letterSpacing: 1 }}>
-          {mode === 'signup' ? 'Create Account' : 'Welcome Back'}
-        </h2>
-        <div style={{ fontSize: 12, color: XOVR.muted, marginBottom: 28 }}>
-          {mode === 'signup' ? 'Join your team on XOVR' : 'Sign in to your team'}
+      <div style={{ minHeight: '100vh', background: XOVR.teal, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Top half — court background with logo */}
+        <div style={{ position: 'relative', height: '45vh', minHeight: 260, overflow: 'hidden', flexShrink: 0 }}>
+          <CourtBackground />
+          {/* Logo centered over court */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img
+              src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg"
+              alt="XOVR Basketball"
+              style={{ width: 220, height: 220, objectFit: 'contain', filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.7))' }}
+            />
+          </div>
         </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 300 }}>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required
-            style={{ padding: '12px 14px', background: XOVR.inputBg, border: `1px solid ${XOVR.inputBorder}`, borderRadius: 10, color: XOVR.text, fontSize: 14, outline: 'none' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required
-            style={{ padding: '12px 14px', background: XOVR.inputBg, border: `1px solid ${XOVR.inputBorder}`, borderRadius: 10, color: XOVR.text, fontSize: 14, outline: 'none' }} />
-          <button type="submit"
-            style={{ padding: '13px', fontWeight: 800, fontSize: 14, letterSpacing: 1, background: XOVR.gold, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', textTransform: 'uppercase' }}>
-            {mode === 'signup' ? 'Sign Up' : 'Sign In'}
+
+        {/* Bottom half — login form */}
+        <div style={{ flex: 1, background: XOVR.teal, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 28, paddingBottom: 32, paddingLeft: 24, paddingRight: 24 }}>
+
+          {/* WELCOME, COACH! */}
+          <div style={{
+            fontSize: 32, fontWeight: 900, marginBottom: 28, textAlign: 'center',
+            color: XOVR.gold,
+            fontFamily: "'Georgia', 'Times New Roman', serif",
+            textShadow: `-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 3px 0 rgba(0,0,0,0.5)`,
+            letterSpacing: 2,
+            WebkitTextStroke: '1px #000',
+          }}>
+            {mode === 'signup' ? 'CREATE ACCOUNT' : 'WELCOME, COACH!'}
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', maxWidth: 340 }}>
+            <input
+              type="email"
+              placeholder="Username"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              style={{
+                padding: '16px 20px',
+                background: XOVR.inputBg,
+                border: `2px solid ${XOVR.gold}`,
+                borderRadius: 50,
+                color: XOVR.text,
+                fontSize: 15,
+                outline: 'none',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              style={{
+                padding: '16px 20px',
+                background: XOVR.inputBg,
+                border: `2px solid ${XOVR.gold}`,
+                borderRadius: 50,
+                color: XOVR.text,
+                fontSize: 15,
+                outline: 'none',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            {/* Forgot Password */}
+            {mode === 'signin' && (
+              <div style={{ textAlign: 'center', marginTop: -4 }}>
+                <button type="button" onClick={handleForgotPassword}
+                  style={{ background: 'none', border: 'none', color: XOVR.text, fontSize: 13, cursor: 'pointer', opacity: 0.7 }}>
+                  Forgot Password?
+                </button>
+              </div>
+            )}
+
+            {/* Login button */}
+            <button type="submit"
+              style={{
+                marginTop: 10,
+                padding: '16px',
+                fontWeight: 900,
+                fontSize: 18,
+                background: XOVR.gold,
+                color: '#000',
+                border: 'none',
+                borderRadius: 50,
+                cursor: 'pointer',
+                letterSpacing: 1,
+                width: '60%',
+                alignSelf: 'center',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+              }}>
+              {mode === 'signup' ? 'Sign Up' : 'Login'}
+            </button>
+          </form>
+
+          {message && (
+            <p style={{ marginTop: 14, fontSize: 13, color: message.startsWith('Error') ? '#ff6b6b' : XOVR.gold, textAlign: 'center', maxWidth: 300 }}>
+              {message}
+            </p>
+          )}
+
+          {/* Toggle signup/signin */}
+          <button onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setMessage(''); }}
+            style={{ marginTop: 20, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', fontSize: 13 }}>
+            {mode === 'signup' ? 'Already have an account? Sign in' : "Need an account? Sign up"}
           </button>
-        </form>
-        {message && <p style={{ marginTop: 12, fontSize: 13, color: message.startsWith('Error') ? '#ff6b6b' : XOVR.gold, textAlign: 'center' }}>{message}</p>}
-        <button onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
-          style={{ marginTop: 16, background: 'none', border: 'none', color: XOVR.goldDim, cursor: 'pointer', fontSize: 13 }}>
-          {mode === 'signup' ? 'Already have an account? Sign in' : "Need an account? Sign up"}
-        </button>
-        <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>XOVR BASKETBALL © 2026</div>
+
+          <div style={{ marginTop: 'auto', paddingTop: 24, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>
+            XOVR BASKETBALL © 2026
+          </div>
+        </div>
       </div>
     );
   }
@@ -344,19 +484,26 @@ function App() {
   if (selectedTeam) return <TeamView team={selectedTeam} onBack={() => setSelectedTeam(null)} />;
 
   return (
-    <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-      <img src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg" alt="XOVR Basketball" style={{ width: 100, height: 100, marginBottom: 16 }} />
+    <div style={{ minHeight: '100vh', background: XOVR.teal, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+      <img
+        src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg"
+        alt="XOVR Basketball"
+        style={{ width: 100, height: 100, marginBottom: 16 }}
+      />
       <div style={{ fontSize: 11, color: XOVR.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
-      <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
+      <div style={{ fontSize: 13, color: XOVR.gold, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
         {teams.map(t => (
           <button key={t.id} onClick={() => setSelectedTeam(t)}
-            style={{ padding: 14, fontSize: 15, fontWeight: 700, background: '#111', color: XOVR.text, border: `1px solid ${XOVR.gold}`, borderRadius: 10, cursor: 'pointer', letterSpacing: 0.5 }}>
+            style={{ padding: 14, fontSize: 15, fontWeight: 700, background: 'rgba(0,0,0,0.3)', color: XOVR.text, border: `2px solid ${XOVR.gold}`, borderRadius: 50, cursor: 'pointer', letterSpacing: 0.5 }}>
             {t.name}
           </button>
         ))}
       </div>
-      <button onClick={handleSignOut} style={{ marginTop: 30, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Sign Out</button>
+      <button onClick={handleSignOut}
+        style={{ marginTop: 30, background: 'none', border: 'none', color: XOVR.muted, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>
+        Sign Out
+      </button>
       <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>XOVR BASKETBALL © 2026</div>
     </div>
   );
