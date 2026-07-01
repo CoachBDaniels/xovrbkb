@@ -313,12 +313,7 @@ function App() {
   if (!session) {
     return (
       <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-        <div style={{ width: 120, height: 120, borderRadius: '50%', background: XOVR.teal, border: `3px solid ${XOVR.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: XOVR.gold, letterSpacing: 2 }}>XOVR</div>
-            <div style={{ fontSize: 9, color: XOVR.text, letterSpacing: 1, textTransform: 'uppercase' }}>Basketball</div>
-          </div>
-        </div>
+        <img src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg" alt="XOVR Basketball" style={{ width: 140, height: 140, marginBottom: 20 }} />
         <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>Powered by XOVR</div>
         <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: 22, fontWeight: 900, color: XOVR.gold, letterSpacing: 1 }}>
           {mode === 'signup' ? 'Create Account' : 'Welcome Back'}
@@ -350,12 +345,7 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: XOVR.bg, color: XOVR.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-      <div style={{ width: 80, height: 80, borderRadius: '50%', background: XOVR.teal, border: `2px solid ${XOVR.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: XOVR.gold, letterSpacing: 2 }}>XOVR</div>
-          <div style={{ fontSize: 7, color: XOVR.text, letterSpacing: 1 }}>BASKETBALL</div>
-        </div>
-      </div>
+      <img src="https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Simple%20Illustration%20Basketball%20Sports%20Academy%20Circle%20Logo.svg" alt="XOVR Basketball" style={{ width: 100, height: 100, marginBottom: 16 }} />
       <div style={{ fontSize: 11, color: XOVR.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
       <div style={{ fontSize: 11, color: XOVR.goldDim, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 300 }}>
