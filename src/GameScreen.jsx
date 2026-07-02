@@ -182,12 +182,10 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     return () => { cancelled = true; };
   }, [team.id]);
 
-
   useEffect(() => {
     supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
       .then(({ data, error }) => { if (!error) setPlayers(data); });
   }, [team.id]);
-
 
   useEffect(() => {
     if (!game.opponent_id) return;
@@ -195,9 +193,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
       .then(({ data, error }) => { if (!error) setOpponent(data); });
   }, [game.opponent_id]);
 
-
   const statsFor = (id) => stats[id] || emptyPlayerStats();
-
 
   const commitStatOnly = (playerId, key, loggedShot) => {
     setStats(prev => {
@@ -207,20 +203,17 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot }]);
   };
 
-
   const tagStat = (playerId, key) => {
     if (!playerId) return;
     commitStatOnly(playerId, key, false);
     setSelectedPlayer(null);
   };
 
-
   const handleCourtTap = (x, y, px, py, rectW, rectH) => {
     if (!selectedPlayer) return;
     const inside = isInsideArc(x, y);
     setPendingShot({ x, y, px, py, rectW, rectH, is2pt: inside });
   };
-
 
   const confirmShot = (make) => {
     if (!pendingShot || !selectedPlayer) return;
@@ -231,7 +224,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setPendingShot(null);
     setSelectedPlayer(null);
   };
-
 
   const undoLastAction = () => {
     setActionHistory(prevHistory => {
@@ -251,10 +243,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     });
   };
 
-
   const ourScore = players.reduce((s, p) => s + calcPts(statsFor(p.id)), 0);
   const oppScore = calcPts(statsFor('OPP'));
-
 
   const playLogRef = useRef(null);
   const autoSaveTimer = useRef(null);
@@ -276,7 +266,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory]);
 
-
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: stats,
@@ -288,7 +277,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (!error) onSaved();
     else alert('Error saving: ' + error.message);
   };
-
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
@@ -303,9 +291,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     else alert('Error saving: ' + error.message);
   };
 
-
   const clockTotalSeconds = clockMinutes * 60 + clockSeconds;
-
 
   const checkInLineup = (ids, explicitSeconds) => {
     const ts = explicitSeconds != null ? explicitSeconds : clockTotalSeconds;
@@ -316,12 +302,10 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     });
   };
 
-
   const startWithLineup = (ids) => {
     setOnCourt(ids);
     checkInLineup(ids, clockMinutes * 60 + clockSeconds);
   };
-
 
   const bankMinutes = (atSeconds) => {
     setMinutesLog(prevLog => {
@@ -337,11 +321,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     });
   };
 
-
   const openSubs = () => { setShowSubs(true); setSubOutIds([]); setSubInIds([]); };
   const toggleSubOut = (pid) => setSubOutIds(prev => prev.includes(pid) ? prev.filter(x => x !== pid) : [...prev, pid]);
   const toggleSubIn = (pid) => setSubInIds(prev => prev.includes(pid) ? prev.filter(x => x !== pid) : [...prev, pid]);
-
 
   const confirmSub = () => {
     if (subOutIds.length === 0 || subOutIds.length !== subInIds.length) return;
@@ -371,13 +353,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setShowSubClockConfirm(true);
   };
 
-
   const applySubClockConfirm = () => {
     setClockMinutes(confirmMin);
     setClockSeconds(confirmSec);
     setShowSubClockConfirm(false);
   };
-
 
   const openClockEdit = () => { setEditMin(clockMinutes); setEditSec(clockSeconds); setEditingClock(true); };
   const saveClockEdit = () => { setClockMinutes(editMin); setClockSeconds(editSec); setEditingClock(false); };
@@ -392,11 +372,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setEditingClock(false);
   };
 
-
   useEffect(() => {
     if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight;
   }, [actionHistory]);
-
 
   const liveMinutesFor = (pid) => {
     const banked = minutesLog[pid] || 0;
@@ -412,7 +390,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     return m + ':' + String(s).padStart(2, '0');
   };
 
-
   if (!statDefsReady) return <p style={{ color: COLORS.muted }}>Loading...</p>;
 
   if (!onCourt) {
@@ -425,6 +402,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     );
   }
 
+  // Abbreviations for scoreboard
+  const ourAbbr = (teamName || 'TM').slice(0, 4).toUpperCase();
+  const oppAbbr = opponent?.abbr || (opponent?.name || game.meta?.opponentName || 'OPP').slice(0, 4).toUpperCase();
 
   return (
     <div>
@@ -468,30 +448,37 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Scoreboard */}
+      {/* Scoreboard — abbrevs, smaller font */}
       {(() => {
         const ourPrimary = COLORS.navy;
         const oppPrimary = opponent?.primary_color || '#6b7280';
         const oppSecondary = opponent?.secondary_color || '#9ca3af';
         return (
           <div style={{ display: 'flex', borderBottom: `2px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8, background: `linear-gradient(90deg, ${ourPrimary} 0%, #000 48%, #000 52%, ${oppPrimary} 100%)` }}>
-            <div style={{ flex: 1, padding: '7px 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 9, minWidth: 0 }}>
-              {logo ? <img src={logo} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: COLORS.gold }}>{(teamName || '?').slice(0, 1)}</div>}
-              <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 1, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{teamName || 'TM'}</div>
-              <div style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</div>
+            {/* Our team */}
+            <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: 0 }}>
+              {logo
+                ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourAbbr.slice(0, 1)}</div>}
+              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{ourAbbr}</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</div>
             </div>
-            <div style={{ padding: '7px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minWidth: 88 }}>
-              <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, letterSpacing: 1.5 }}>{gameFormat.periodLabel.slice(0, 1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}</div>
-              <button onClick={openClockEdit} style={{ fontSize: 24, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
+            {/* Clock */}
+            <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minWidth: 80 }}>
+              <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, letterSpacing: 1.5 }}>
+                {gameFormat.periodLabel.slice(0, 1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}
+              </div>
+              <button onClick={openClockEdit} style={{ fontSize: 22, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
                 {clockMinutes}:{String(clockSeconds).padStart(2, '0')}
               </button>
             </div>
-            <div style={{ flex: 1, padding: '7px 8px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 9, minWidth: 0 }}>
-              <div style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</div>
-              <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 1, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{(opponent?.name || game.meta?.opponentName || 'OPP').slice(0, 10)}</div>
-              {opponent?.logo_url ? <img src={opponent.logo_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{(opponent?.abbr || game.meta?.opponentName || '?').slice(0, 1)}</div>}
+            {/* Opponent */}
+            <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, minWidth: 0 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</div>
+              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{oppAbbr}</div>
+              {opponent?.logo_url
+                ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppAbbr.slice(0, 1)}</div>}
             </div>
           </div>
         );
@@ -500,7 +487,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
       {/* Players + Court + Controls */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'stretch' }}>
         {/* On-court players */}
-        <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 280 }}>
+        <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 260 }}>
           {players.filter(p => onCourt.includes(p.id)).map(p => {
             const sel = selectedPlayer === p.id;
             const eff = calcEff(statsFor(p.id));
@@ -517,7 +504,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           })}
         </div>
 
-        {/* Court — tappable, no text */}
+        {/* Court */}
         <div style={{ flex: 1 }}>
           <MiniCourtTappable
             courtColor={court}
@@ -530,11 +517,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           />
         </div>
 
-        {/* Right controls — no Undo here anymore */}
+        {/* Right controls */}
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button onClick={() => setSelectedPlayer('OPP')}
             style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
-            {game.meta?.opponentName ? game.meta.opponentName.slice(0, 10) : 'Opponent'}
+            {oppAbbr}
           </button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
           <button onClick={() => setShowLiveBoxScore(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
@@ -550,18 +537,18 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </button>
       )}
 
-      {/* Game log — below court */}
+      {/* Game log — 1.5 rows tall */}
       {actionHistory.length > 0 && (
-        <div ref={playLogRef} style={{ height: 44, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
+        <div ref={playLogRef} style={{ height: 30, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
           {actionHistory.map((a, i) => {
             const def = STAT_DEFS.find(d => d.key === a.key);
             const p = players.find(pl => pl.id === a.playerId);
-            const label = a.playerId === 'OPP' ? (game.meta?.opponentName ? game.meta.opponentName.slice(0, 10) : 'OPP') : (p ? `#${p.number || '—'} ${(p.name || '').split(' ')[0]}` : '#?');
+            const label = a.playerId === 'OPP' ? oppAbbr : (p ? `#${p.number || '—'} ${(p.name || '').split(' ')[0]}` : '#?');
             const isGreen = def ? def.value >= 0 : true;
             const isLast = i === actionHistory.length - 1;
             return (
               <div key={`${a.playerId}-${a.key}-${i}`}
-                style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 2px', fontSize: 10, fontWeight: isLast ? 800 : 600, color: isGreen ? COLORS.statPosText : COLORS.statNegText, background: isLast ? (isGreen ? COLORS.statPosBg : COLORS.statNegBg) : 'transparent' }}>
+                style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 2px', fontSize: 10, fontWeight: isLast ? 800 : 600, color: isGreen ? COLORS.statPosText : COLORS.statNegText, background: isLast ? (isGreen ? COLORS.statPosBg : COLORS.statNegBg) : 'transparent' }}>
                 <span>{label}</span>
                 <span>{def ? def.label : a.key}</span>
               </div>
@@ -570,90 +557,119 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Stat buttons — Undo in bottom-right of negative grid */}
+      {/* Stat buttons */}
       {(() => {
         const GREEN_KEYS = ["O", "D", "AST", "STL", "FTM"];
-        const RED_KEYS = ["FTA", "TO", "AP", "PF"];
         const greenDefs = GREEN_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
-        const redDefs = RED_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
-        const LIVE_KEYS = new Set([...GREEN_KEYS, ...RED_KEYS]);
+        const LIVE_KEYS = new Set([...GREEN_KEYS, "TO", "AP", "FTA", "PF"]);
         const specialPosDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value >= 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
+        const specialNegDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value < 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
 
-        const btnStyle = (isGreen) => ({
+        const posBtn = (isGreen) => ({
           padding: '10px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center',
           background: isGreen ? COLORS.statPosBg : COLORS.statNegBg,
           border: `2px solid ${isGreen ? COLORS.statPosBorder : COLORS.statNegBorder}`,
           color: isGreen ? COLORS.statPosText : COLORS.statNegText, fontWeight: 700,
         });
 
-        const renderQuickBtn = (def) => (
+        const renderBtn = (def) => (
           <button key={def.key} onClick={() => tagStat(selectedPlayer, def.key)} disabled={!selectedPlayer}
-            style={{ ...btnStyle(def.value >= 0), opacity: selectedPlayer ? 1 : 0.5 }}>
+            style={{ ...posBtn(def.value >= 0), opacity: selectedPlayer ? 1 : 0.5 }}>
             <div style={{ fontSize: 10 }}>{def.abbr}</div>
             <div style={{ fontSize: 13, fontWeight: 900 }}>{statsFor(selectedPlayer || '')[def.key] || 0}</div>
           </button>
         );
 
-        const renderSpBtn = () => {
-          const opts = specialPosDefs;
+        const spPosBtn = () => {
           const isOpen = specialPicker === 'pos';
           return (
-            <button key="sp-pos" disabled={opts.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'pos')}
-              style={{ ...btnStyle(true), opacity: (selectedPlayer && opts.length > 0) ? 1 : 0.5, position: 'relative' }}>
-              <div style={{ fontSize: 9, fontWeight: 700 }}>SPECIAL</div>
+            <button disabled={specialPosDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'pos')}
+              style={{ ...posBtn(true), opacity: (selectedPlayer && specialPosDefs.length > 0) ? 1 : 0.5 }}>
+              <div style={{ fontSize: 9 }}>SPECIAL</div>
               <div style={{ fontSize: 13, fontWeight: 900 }}>SP{isOpen ? ' ▲' : ''}</div>
             </button>
           );
         };
 
-        const undoBtn = (
-          <button
-            key="undo"
-            onClick={undoLastAction}
-            disabled={actionHistory.length === 0}
+        const spNegBtn = () => {
+          const isOpen = specialPicker === 'neg';
+          return (
+            <button disabled={specialNegDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'neg')}
+              style={{ ...posBtn(false), opacity: (selectedPlayer && specialNegDefs.length > 0) ? 1 : 0.5 }}>
+              <div style={{ fontSize: 9 }}>SPECIAL</div>
+              <div style={{ fontSize: 13, fontWeight: 900 }}>SP{isOpen ? ' ▲' : ''}</div>
+            </button>
+          );
+        };
+
+        const undoBtn = () => (
+          <button onClick={undoLastAction} disabled={actionHistory.length === 0}
             style={{
-              padding: '10px 2px', borderRadius: 7, cursor: actionHistory.length === 0 ? 'default' : 'pointer', textAlign: 'center',
+              padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700,
               background: 'rgba(255,255,255,0.05)',
               border: `2px solid ${actionHistory.length === 0 ? COLORS.border : COLORS.gold}`,
               color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold,
-              fontWeight: 700, opacity: actionHistory.length === 0 ? 0.4 : 1,
+              cursor: actionHistory.length === 0 ? 'default' : 'pointer',
+              opacity: actionHistory.length === 0 ? 0.4 : 1,
             }}>
             <div style={{ fontSize: 10 }}>UNDO</div>
             <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
           </button>
         );
 
+        // Negative grid: TO | PF / AP | FTA / SP- | UNDO
+        const toBtn = STAT_DEFS.find(d => d.key === 'TO');
+        const pfBtn = STAT_DEFS.find(d => d.key === 'PF');
+        const apBtn = STAT_DEFS.find(d => d.key === 'AP');
+        const ftaBtn = STAT_DEFS.find(d => d.key === 'FTA');
+
         return (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               {/* Positive side */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
-                {greenDefs.map(renderQuickBtn)}
-                {renderSpBtn()}
+                {greenDefs.map(renderBtn)}
+                {spPosBtn()}
               </div>
               <div style={{ width: 1, background: COLORS.border, alignSelf: 'stretch' }} />
-              {/* Negative side — RED_KEYS + Undo in last slot */}
+              {/* Negative side — TO/PF, AP/FTA, SP-/UNDO */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
-                {redDefs.map(renderQuickBtn)}
-                {undoBtn}
+                {toBtn && renderBtn(toBtn)}
+                {pfBtn && renderBtn(pfBtn)}
+                {apBtn && renderBtn(apBtn)}
+                {ftaBtn && renderBtn(ftaBtn)}
+                {spNegBtn()}
+                {undoBtn()}
               </div>
             </div>
 
-            {specialPicker === 'pos' && (() => {
-              const opts = specialPosDefs;
-              return (
-                <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.green}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (+)</div>
-                  {opts.map(def => (
-                    <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
-                      <span>{def.label}</span>
-                      <span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            {/* Special pos picker */}
+            {specialPicker === 'pos' && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.green}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (+)</div>
+                {specialPosDefs.map(def => (
+                  <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
+                    <span>{def.label}</span>
+                    <span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Special neg picker */}
+            {specialPicker === 'neg' && (
+              <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.red}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (-)</div>
+                {specialNegDefs.map(def => (
+                  <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
+                    <span>{def.label}</span>
+                    <span style={{ color: COLORS.red, fontWeight: 900 }}>{def.value}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}
@@ -734,7 +750,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <button onClick={() => window.print()} style={{ padding: '8px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>🖨 Print / Save PDF</button>
           </div>
           <h2 style={{ marginBottom: 4 }}>Final: {ourScore} - {oppScore}</h2>
-          <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {game.meta?.opponentName || '—'} · {game.meta?.date || ''}</div>
+          <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {opponent?.name || game.meta?.opponentName || '—'} · {game.meta?.date || ''}</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
             <thead>
               <tr style={{ background: COLORS.navy, color: COLORS.text }}>
@@ -767,12 +783,13 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
 function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
-  const oppAbbr = opponentRecord?.abbr;
+  const oppAbbr = opponentRecord?.abbr || oppName.slice(0, 4).toUpperCase();
   const oppPrimary = opponentRecord?.primary_color || '#6b7280';
   const oppSecondary = opponentRecord?.secondary_color || '#9ca3af';
   const ourScore = game.meta?.ourScore ?? 0;
   const theirScore = game.meta?.theirScore ?? 0;
   const isFinal = !!game.is_final;
+  const ourAbbr = (teamName || 'TM').slice(0, 4).toUpperCase();
 
   const teamRow = (color, logoSrc, fallbackInitial, fallbackColor, fallbackBorder, name, score, isTop) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: `linear-gradient(90deg, ${color} 0%, #000 78%, #000 100%)`, borderRadius: isTop ? '6px 6px 0 0' : '0 0 6px 6px' }}>
@@ -785,12 +802,12 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
 
   return (
     <div style={{ borderRadius: 6, overflow: 'hidden', borderBottom: `1px solid ${COLORS.border}` }}>
-      {teamRow(COLORS.navy, logo, (teamName || '?').slice(0, 1), COLORS.gold, null, teamName || 'TM', ourScore, true)}
+      {teamRow(COLORS.navy, logo, ourAbbr.slice(0, 1), COLORS.gold, null, ourAbbr, ourScore, true)}
       <div style={{ padding: '2px 0', textAlign: 'center', background: '#0d1b2e' }}>
         {isFinal ? <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
           : <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.gold }}>IN PROGRESS</div>}
       </div>
-      {teamRow(oppPrimary, opponentRecord?.logo_url, (oppAbbr || oppName || '?').slice(0, 1), oppSecondary, oppSecondary, oppName, theirScore, false)}
+      {teamRow(oppPrimary, opponentRecord?.logo_url, oppAbbr.slice(0, 1), oppSecondary, oppSecondary, oppAbbr, theirScore, false)}
     </div>
   );
 }
