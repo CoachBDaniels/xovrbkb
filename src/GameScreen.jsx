@@ -140,6 +140,8 @@ function HudlCompareModal({ game, team, onClose, onSaved }) {
   const [parsedData, setParsedData] = useState(null);
   const [matchedStats, setMatchedStats] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [comparisons, setComparisons] = useState([]);
+  const [showFull, setShowFull] = useState({});
 
   useEffect(() => {
     supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
@@ -216,7 +218,6 @@ Rules:
       const parsed = JSON.parse(clean);
       setParsedData(parsed);
 
-      // Match Hudl players to roster by jersey number, auto-assign if match found
       const matched = (parsed.players || []).map(hp => {
         const rosterPlayer = players.find(p =>
           String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim()
@@ -240,7 +241,6 @@ Rules:
     setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
   };
 
-  // Convert hudl stats to XOVR stat keys
   const hudlToXovr = (s) => ({
     '2PM': Math.max(0, (s.fgm || 0) - (s.fg3m || 0)),
     '2PA': Math.max(0, (s.fga || 0) - (s.fg3a || 0)),
@@ -259,7 +259,6 @@ Rules:
     'CHG_taken': s.chg || 0,
   });
 
-  // Stat display labels for comparison
   const COMPARE_STATS = [
     { key: '2PM', label: '2PM' }, { key: '2PA', label: '2PA' },
     { key: '3PM', label: '3PM' }, { key: '3PA', label: '3PA' },
@@ -271,7 +270,6 @@ Rules:
     { key: 'CHG_taken', label: 'CHG' },
   ];
 
-  // Build comparison rows — current XOVR stats vs Hudl
   const buildComparison = () => {
     return matchedStats
       .filter(m => m.rosterPlayerId)
@@ -287,14 +285,10 @@ Rules:
           xovrStats,
           hudlXovr,
           diffs,
-          // Per-stat accepted values — start with XOVR values
           accepted: { ...xovrStats },
         };
       });
   };
-
-  const [comparisons, setComparisons] = useState([]);
-  const [showFull, setShowFull] = useState({});
 
   useEffect(() => {
     if (step === 'compare' && matchedStats.length > 0 && players.length > 0) {
@@ -355,33 +349,31 @@ Rules:
     }
   };
 
-  const totalDiffs = comparisons.reduce((n, c) => n + c.diffs.filter(s => (c.accepted[s.key] ?? c.xovrStats[s.key] ?? 0) !== (c.xovrStats[s.key] ?? 0)).length, 0);
   const totalDiscrepancies = comparisons.reduce((n, c) => n + c.diffs.length, 0);
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: COLORS.navyMid, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: COLORS.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
-        <div style={{ color: COLORS.gold, fontWeight: 800, fontSize: 13 }}>📄 Hudl Compare</div>
-        {step === 'compare' && comparisons.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: COLORS.gold }}>
+          <span style={{ color: '#ff6a00', fontWeight: 900, fontSize: 18 }}>H</span> Hudl Compare
+        </div>
+        {step === 'compare' && comparisons.length > 0 ? (
           <button onClick={handleSave} disabled={saving}
             style={{ padding: '6px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
             {saving ? 'Saving…' : 'Save'}
           </button>
-        )}
-        {step !== 'compare' && <div style={{ width: 60 }} />}
+        ) : <div style={{ width: 60 }} />}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
 
-        {/* Upload */}
         {step === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
-            <div style={{ fontSize: 48 }}>📄</div>
+            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Upload Hudl Box Score</div>
             <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
-              Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight any discrepancies.
+              Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight discrepancies.
             </div>
             {error && (
               <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px' }}>
@@ -395,19 +387,17 @@ Rules:
           </div>
         )}
 
-        {/* Parsing */}
         {step === 'parsing' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
-            <div style={{ fontSize: 48 }}>🤖</div>
+            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Reading box score…</div>
             <div style={{ color: COLORS.muted, fontSize: 13 }}>Claude is extracting stats from your Hudl PDF</div>
           </div>
         )}
 
-        {/* Map players before compare */}
         {step === 'compare' && matchedStats.some(m => !m.rosterPlayerId) && (
           <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.gold}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>Some players need to be mapped to your roster:</div>
+            <div style={{ fontSize: 12, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>Map players to your roster:</div>
             {matchedStats.map((m, i) => (
               <div key={i} style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 4 }}>#{m.hudlNumber} {m.hudlName}</div>
@@ -425,10 +415,8 @@ Rules:
           </div>
         )}
 
-        {/* Comparison */}
         {step === 'compare' && comparisons.length > 0 && (
           <div>
-            {/* Summary */}
             <div style={{ background: totalDiscrepancies > 0 ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)', border: `1px solid ${totalDiscrepancies > 0 ? COLORS.red : COLORS.green}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
               {totalDiscrepancies > 0 ? (
                 <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>
@@ -449,11 +437,8 @@ Rules:
             {comparisons.map((c, playerIdx) => {
               const hasDiffs = c.diffs.length > 0;
               const isExpanded = showFull[playerIdx];
-              const statsToShow = isExpanded ? COMPARE_STATS : c.diffs;
-
               return (
                 <div key={c.rosterPlayerId} style={{ background: COLORS.navyMid, border: `1px solid ${hasDiffs ? COLORS.red : COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
-                  {/* Player header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div>
                       <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
@@ -464,8 +449,8 @@ Rules:
                     {hasDiffs ? (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => acceptAllHudlForPlayer(playerIdx)}
-                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#4db8c8' }}>
-                          All Hudl
+                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#ff6a00' }}>
+                          All <span style={{ fontWeight: 900 }}>H</span>
                         </button>
                         <button onClick={() => acceptAllXovrForPlayer(playerIdx)}
                           style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: COLORS.goldLight, border: `1px solid ${COLORS.gold}`, color: COLORS.gold }}>
@@ -477,7 +462,6 @@ Rules:
                     )}
                   </div>
 
-                  {/* Discrepancies first */}
                   {hasDiffs && (
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ fontSize: 10, color: COLORS.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Discrepancies</div>
@@ -486,7 +470,7 @@ Rules:
                         const hudlVal = c.hudlXovr[s.key] || 0;
                         const accepted = c.accepted[s.key] ?? xovrVal;
                         const choseXovr = accepted === xovrVal;
-                        const choseHudl = accepted === hudlVal;
+                        const choseHudl = accepted === hudlVal && accepted !== xovrVal;
                         return (
                           <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
                             <div style={{ width: 40, fontSize: 11, fontWeight: 700, color: COLORS.muted }}>{s.label}</div>
@@ -497,9 +481,9 @@ Rules:
                             </button>
                             <div style={{ color: COLORS.muted, fontSize: 12 }}>vs</div>
                             <button onClick={() => acceptHudl(playerIdx, s.key)}
-                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseHudl && !choseXovr ? '#4db8c8' : COLORS.border}`, background: choseHudl && !choseXovr ? 'rgba(0,51,60,0.6)' : COLORS.navyDark, color: choseHudl && !choseXovr ? '#4db8c8' : COLORS.text }}>
+                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseHudl ? '#ff6a00' : COLORS.border}`, background: choseHudl ? 'rgba(255,106,0,0.12)' : COLORS.navyDark, color: choseHudl ? '#ff6a00' : COLORS.text }}>
                               {hudlVal}
-                              <div style={{ fontSize: 9, fontWeight: 400, color: choseHudl && !choseXovr ? '#4db8c8' : COLORS.muted }}>Hudl</div>
+                              <div style={{ fontSize: 9, fontWeight: 400, color: choseHudl ? '#ff6a00' : COLORS.muted }}>Hudl</div>
                             </button>
                           </div>
                         );
@@ -507,13 +491,11 @@ Rules:
                     </div>
                   )}
 
-                  {/* Full stats toggle */}
                   <button onClick={() => setShowFull(prev => ({ ...prev, [playerIdx]: !prev[playerIdx] }))}
                     style={{ width: '100%', padding: '6px 0', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer', marginBottom: isExpanded ? 8 : 0 }}>
                     {isExpanded ? '▲ Hide full stats' : '▼ Show all stats'}
                   </button>
 
-                  {/* Full stats table */}
                   {isExpanded && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
                       {COMPARE_STATS.map(s => {
@@ -526,7 +508,7 @@ Rules:
                             <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, marginBottom: 2 }}>{s.label}</div>
                             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                               <span style={{ fontSize: 12, fontWeight: 900, color: isDiff ? COLORS.gold : COLORS.text }}>{accepted}</span>
-                              {isDiff && <span style={{ fontSize: 9, color: COLORS.muted }}>Hudl:{hudlVal}</span>}
+                              {isDiff && <span style={{ fontSize: 9, color: '#ff6a00' }}>H:{hudlVal}</span>}
                             </div>
                           </div>
                         );
@@ -539,7 +521,7 @@ Rules:
 
             <button onClick={handleSave} disabled={saving}
               style={{ width: '100%', padding: 14, background: COLORS.gold, border: 'none', borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
-              {saving ? 'Saving…' : `Save Changes →`}
+              {saving ? 'Saving…' : 'Save Changes →'}
             </button>
           </div>
         )}
@@ -1258,7 +1240,6 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
 
   return (
     <div>
-      {/* Hudl Compare Modal */}
       {hudlCompareGame && (
         <HudlCompareModal
           game={hudlCompareGame}
@@ -1303,8 +1284,8 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
                       View / Edit
                     </button>
                     <button onClick={() => setHudlCompareGame(g)}
-                      style={{ padding: '8px 10px', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#4db8c8', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                      📄 Hudl
+                      style={{ padding: '8px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>
+                      H
                     </button>
                   </>
                 )}
