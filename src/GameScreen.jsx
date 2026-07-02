@@ -244,18 +244,12 @@ Rules:
   const hudlToXovr = (s) => ({
     '2PM': Math.max(0, (s.fgm || 0) - (s.fg3m || 0)),
     '2PA': Math.max(0, (s.fga || 0) - (s.fg3a || 0)),
-    '3PM': s.fg3m || 0,
-    '3PA': s.fg3a || 0,
-    'FTM': s.ftm || 0,
-    'FTA': s.fta || 0,
-    'O': s.oreb || 0,
-    'D': s.dreb || 0,
-    'AST': s.ast || 0,
-    'DF': s.defl || 0,
-    'STL': s.stl || 0,
-    'BS': s.blk || 0,
-    'TO': s.to || 0,
-    'PF': s.pf || 0,
+    '3PM': s.fg3m || 0, '3PA': s.fg3a || 0,
+    'FTM': s.ftm || 0, 'FTA': s.fta || 0,
+    'O': s.oreb || 0, 'D': s.dreb || 0,
+    'AST': s.ast || 0, 'DF': s.defl || 0,
+    'STL': s.stl || 0, 'BS': s.blk || 0,
+    'TO': s.to || 0, 'PF': s.pf || 0,
     'CHG_taken': s.chg || 0,
   });
 
@@ -271,23 +265,18 @@ Rules:
   ];
 
   const buildComparison = () => {
-    return matchedStats
-      .filter(m => m.rosterPlayerId)
-      .map(m => {
-        const xovrStats = game.player_stats?.[m.rosterPlayerId] || {};
-        const hudlXovr = hudlToXovr(m.hudlStats);
-        const diffs = COMPARE_STATS.filter(s => (xovrStats[s.key] || 0) !== (hudlXovr[s.key] || 0));
-        return {
-          rosterPlayerId: m.rosterPlayerId,
-          player: players.find(p => p.id === m.rosterPlayerId),
-          hudlName: m.hudlName,
-          hudlNumber: m.hudlNumber,
-          xovrStats,
-          hudlXovr,
-          diffs,
-          accepted: { ...xovrStats },
-        };
-      });
+    return matchedStats.filter(m => m.rosterPlayerId).map(m => {
+      const xovrStats = game.player_stats?.[m.rosterPlayerId] || {};
+      const hudlXovr = hudlToXovr(m.hudlStats);
+      const diffs = COMPARE_STATS.filter(s => (xovrStats[s.key] || 0) !== (hudlXovr[s.key] || 0));
+      return {
+        rosterPlayerId: m.rosterPlayerId,
+        player: players.find(p => p.id === m.rosterPlayerId),
+        hudlName: m.hudlName, hudlNumber: m.hudlNumber,
+        xovrStats, hudlXovr, diffs,
+        accepted: { ...xovrStats },
+      };
+    });
   };
 
   useEffect(() => {
@@ -297,17 +286,11 @@ Rules:
   }, [step, matchedStats, players]);
 
   const acceptHudl = (playerIdx, statKey) => {
-    setComparisons(prev => prev.map((c, i) => {
-      if (i !== playerIdx) return c;
-      return { ...c, accepted: { ...c.accepted, [statKey]: c.hudlXovr[statKey] } };
-    }));
+    setComparisons(prev => prev.map((c, i) => i !== playerIdx ? c : { ...c, accepted: { ...c.accepted, [statKey]: c.hudlXovr[statKey] } }));
   };
 
   const acceptXovr = (playerIdx, statKey) => {
-    setComparisons(prev => prev.map((c, i) => {
-      if (i !== playerIdx) return c;
-      return { ...c, accepted: { ...c.accepted, [statKey]: c.xovrStats[statKey] || 0 } };
-    }));
+    setComparisons(prev => prev.map((c, i) => i !== playerIdx ? c : { ...c, accepted: { ...c.accepted, [statKey]: c.xovrStats[statKey] || 0 } }));
   };
 
   const acceptAllHudlForPlayer = (playerIdx) => {
@@ -367,7 +350,6 @@ Rules:
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-
         {step === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
             <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
@@ -375,11 +357,7 @@ Rules:
             <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
               Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight discrepancies.
             </div>
-            {error && (
-              <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px' }}>
-                {error}
-              </div>
-            )}
+            {error && <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px' }}>{error}</div>}
             <label style={{ padding: '14px 28px', background: COLORS.gold, borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
               Choose PDF
               <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
@@ -428,11 +406,7 @@ Rules:
               )}
             </div>
 
-            {error && (
-              <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>
-                {error}
-              </div>
-            )}
+            {error && <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>{error}</div>}
 
             {comparisons.map((c, playerIdx) => {
               const hasDiffs = c.diffs.length > 0;
@@ -441,15 +415,13 @@ Rules:
                 <div key={c.rosterPlayerId} style={{ background: COLORS.navyMid, border: `1px solid ${hasDiffs ? COLORS.red : COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div>
-                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
-                        #{c.player?.number || '—'} {c.player?.name}
-                      </div>
+                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>#{c.player?.number || '—'} {c.player?.name}</div>
                       <div style={{ fontSize: 10, color: COLORS.muted }}>Hudl: #{c.hudlNumber} {c.hudlName}</div>
                     </div>
                     {hasDiffs ? (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => acceptAllHudlForPlayer(playerIdx)}
-                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#ff6a00' }}>
+                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00' }}>
                           All <span style={{ fontWeight: 900 }}>H</span>
                         </button>
                         <button onClick={() => acceptAllXovrForPlayer(playerIdx)}
@@ -649,25 +621,19 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       supabase.from('games').update({
-        player_stats: stats,
-        shot_log: shotLog,
+        player_stats: stats, shot_log: shotLog,
         meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
-        game_format: gameFormat,
-        updated_at: new Date().toISOString(),
-      }).eq('id', game.id).then(({ error }) => {
-        if (error) console.error('Auto-save failed:', error.message);
-      });
+        game_format: gameFormat, updated_at: new Date().toISOString(),
+      }).eq('id', game.id).then(({ error }) => { if (error) console.error('Auto-save failed:', error.message); });
     }, 800);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
   }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory]);
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: stats,
-      shot_log: shotLog,
+      player_stats: stats, shot_log: shotLog,
       meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
-      game_format: gameFormat,
-      updated_at: new Date().toISOString(),
+      game_format: gameFormat, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) onSaved();
     else alert('Error saving: ' + error.message);
@@ -675,12 +641,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: stats,
-      shot_log: shotLog,
+      player_stats: stats, shot_log: shotLog,
       meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
-      game_format: gameFormat,
-      is_final: true,
-      updated_at: new Date().toISOString(),
+      game_format: gameFormat, is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowReport(true); }
     else alert('Error saving: ' + error.message);
@@ -690,27 +653,17 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const checkInLineup = (ids, explicitSeconds) => {
     const ts = explicitSeconds != null ? explicitSeconds : clockTotalSeconds;
-    setCheckInClock(prev => {
-      const next = { ...prev };
-      ids.forEach(pid => { next[pid] = ts; });
-      return next;
-    });
+    setCheckInClock(prev => { const next = { ...prev }; ids.forEach(pid => { next[pid] = ts; }); return next; });
   };
 
-  const startWithLineup = (ids) => {
-    setOnCourt(ids);
-    checkInLineup(ids, clockMinutes * 60 + clockSeconds);
-  };
+  const startWithLineup = (ids) => { setOnCourt(ids); checkInLineup(ids, clockMinutes * 60 + clockSeconds); };
 
   const bankMinutes = (atSeconds) => {
     setMinutesLog(prevLog => {
       const next = { ...prevLog };
       (onCourt || []).forEach(pid => {
         const startSec = checkInClock[pid];
-        if (startSec != null) {
-          const elapsed = Math.max(0, startSec - atSeconds);
-          next[pid] = (next[pid] || 0) + elapsed;
-        }
+        if (startSec != null) { const elapsed = Math.max(0, startSec - atSeconds); next[pid] = (next[pid] || 0) + elapsed; }
       });
       return next;
     });
@@ -724,66 +677,36 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (subOutIds.length === 0 || subOutIds.length !== subInIds.length) return;
     setMinutesLog(prev => {
       const next = { ...prev };
-      subOutIds.forEach(pid => {
-        const elapsed = Math.max(0, (checkInClock[pid] || clockTotalSeconds) - clockTotalSeconds);
-        next[pid] = (next[pid] || 0) + elapsed;
-      });
+      subOutIds.forEach(pid => { const elapsed = Math.max(0, (checkInClock[pid] || clockTotalSeconds) - clockTotalSeconds); next[pid] = (next[pid] || 0) + elapsed; });
       return next;
     });
-    setCheckInClock(prev => {
-      const next = { ...prev };
-      subOutIds.forEach(pid => { delete next[pid]; });
-      subInIds.forEach(pid => { next[pid] = clockTotalSeconds; });
-      return next;
-    });
-    setOnCourt(prev => {
-      const remaining = prev.filter(pid => !subOutIds.includes(pid));
-      return [...remaining, ...subInIds];
-    });
-    setSubOutIds([]);
-    setSubInIds([]);
-    setShowSubs(false);
-    setConfirmMin(clockMinutes);
-    setConfirmSec(clockSeconds);
-    setShowSubClockConfirm(true);
+    setCheckInClock(prev => { const next = { ...prev }; subOutIds.forEach(pid => { delete next[pid]; }); subInIds.forEach(pid => { next[pid] = clockTotalSeconds; }); return next; });
+    setOnCourt(prev => [...prev.filter(pid => !subOutIds.includes(pid)), ...subInIds]);
+    setSubOutIds([]); setSubInIds([]); setShowSubs(false);
+    setConfirmMin(clockMinutes); setConfirmSec(clockSeconds); setShowSubClockConfirm(true);
   };
 
-  const applySubClockConfirm = () => {
-    setClockMinutes(confirmMin);
-    setClockSeconds(confirmSec);
-    setShowSubClockConfirm(false);
-  };
-
+  const applySubClockConfirm = () => { setClockMinutes(confirmMin); setClockSeconds(confirmSec); setShowSubClockConfirm(false); };
   const openClockEdit = () => { setEditMin(clockMinutes); setEditSec(clockSeconds); setEditingClock(true); };
   const saveClockEdit = () => { setClockMinutes(editMin); setClockSeconds(editSec); setEditingClock(false); };
+
   const advancePeriod = () => {
     bankMinutes(clockTotalSeconds);
     const isOT = currentPeriod >= gameFormat.periods;
     const newMinutes = isOT ? gameFormat.otMinutes : gameFormat.minutes;
-    setCurrentPeriod(p => p + 1);
-    setClockMinutes(newMinutes);
-    setClockSeconds(0);
-    checkInLineup(onCourt || [], newMinutes * 60);
-    setEditingClock(false);
+    setCurrentPeriod(p => p + 1); setClockMinutes(newMinutes); setClockSeconds(0);
+    checkInLineup(onCourt || [], newMinutes * 60); setEditingClock(false);
   };
 
-  useEffect(() => {
-    if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight;
-  }, [actionHistory]);
+  useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [actionHistory]);
 
   const liveMinutesFor = (pid) => {
     const banked = minutesLog[pid] || 0;
     const startSec = checkInClock[pid];
-    if (onCourt && onCourt.includes(pid) && startSec != null) {
-      return banked + Math.max(0, startSec - clockTotalSeconds);
-    }
+    if (onCourt && onCourt.includes(pid) && startSec != null) return banked + Math.max(0, startSec - clockTotalSeconds);
     return banked;
   };
-  const fmtMin = (totalSeconds) => {
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return m + ':' + String(s).padStart(2, '0');
-  };
+  const fmtMin = (totalSeconds) => { const m = Math.floor(totalSeconds / 60); const s = totalSeconds % 60; return m + ':' + String(s).padStart(2, '0'); };
 
   if (!statDefsReady) return <p style={{ color: COLORS.muted }}>Loading...</p>;
 
@@ -797,8 +720,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     );
   }
 
-  const ourAbbr = teamAbbr || (teamName || 'TM').slice(0, 4).toUpperCase();
-  const oppAbbr = opponent?.abbr || (opponent?.name || game.meta?.opponentName || 'OPP').slice(0, 4).toUpperCase();
+  const ourDisplayName = teamName || 'TM';
+  const oppDisplayName = opponent?.name || game.meta?.opponentName || 'OPP';
+  const oppAbbr = opponent?.abbr || oppDisplayName.slice(0, 4).toUpperCase();
 
   return (
     <div>
@@ -815,9 +739,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <button onClick={advancePeriod} style={{ width: '100%', padding: 10, background: COLORS.greenBg, color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
               End {gameFormat.periodLabel} {currentPeriod} → Start {currentPeriod >= gameFormat.periods ? 'OT' : gameFormat.periodLabel + ' ' + (currentPeriod + 1)}
             </button>
-            <button onClick={() => { setDraftFormat(gameFormat); setEditingFormat(true); }} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.gold}`, color: COLORS.gold, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
-              ▼ Edit Game Format
-            </button>
+            <button onClick={() => { setDraftFormat(gameFormat); setEditingFormat(true); }} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.gold}`, color: COLORS.gold, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>▼ Edit Game Format</button>
             <button onClick={() => setEditingClock(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
@@ -840,6 +762,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
+      {/* Scoreboard — full team name for us, full name for opponent */}
       {(() => {
         const ourPrimary = COLORS.navy;
         const oppPrimary = opponent?.primary_color || '#6b7280';
@@ -848,8 +771,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           <div style={{ display: 'flex', borderBottom: `2px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8, background: `linear-gradient(90deg, ${ourPrimary} 0%, #000 48%, #000 52%, ${oppPrimary} 100%)` }}>
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: 0 }}>
               {logo ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourAbbr.slice(0, 1)}</div>}
-              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{ourAbbr}</div>
+                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourDisplayName.slice(0, 1)}</div>}
+              <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80, flexShrink: 1 }}>{ourDisplayName}</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</div>
             </div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minWidth: 80 }}>
@@ -862,9 +785,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             </div>
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, minWidth: 0 }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</div>
-              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{oppAbbr}</div>
+              <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80, flexShrink: 1 }}>{oppDisplayName}</div>
               {opponent?.logo_url ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppAbbr.slice(0, 1)}</div>}
+                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppDisplayName.slice(0, 1)}</div>}
             </div>
           </div>
         );
@@ -889,19 +812,12 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
 
         <div style={{ flex: 1 }}>
-          <MiniCourtTappable
-            courtColor={court} laneColor={lane}
-            onTap={handleCourtTap}
-            pendingShot={pendingShot}
-            onConfirmShot={confirmShot}
-            onCancelShot={() => setPendingShot(null)}
-            COLORS={COLORS}
-          />
+          <MiniCourtTappable courtColor={court} laneColor={lane} onTap={handleCourtTap} pendingShot={pendingShot} onConfirmShot={confirmShot} onCancelShot={() => setPendingShot(null)} COLORS={COLORS} />
         </div>
 
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button onClick={() => setSelectedPlayer('OPP')}
-            style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
+            style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10 }}>
             {oppAbbr}
           </button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
@@ -983,14 +899,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
         const undoBtn = () => (
           <button onClick={undoLastAction} disabled={actionHistory.length === 0}
-            style={{
-              padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700,
-              background: 'rgba(255,255,255,0.05)',
-              border: `2px solid ${actionHistory.length === 0 ? COLORS.border : COLORS.gold}`,
-              color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold,
-              cursor: actionHistory.length === 0 ? 'default' : 'pointer',
-              opacity: actionHistory.length === 0 ? 0.4 : 1,
-            }}>
+            style={{ padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700, background: 'rgba(255,255,255,0.05)', border: `2px solid ${actionHistory.length === 0 ? COLORS.border : COLORS.gold}`, color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold, cursor: actionHistory.length === 0 ? 'default' : 'pointer', opacity: actionHistory.length === 0 ? 0.4 : 1 }}>
             <div style={{ fontSize: 10 }}>UNDO</div>
             <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
           </button>
@@ -1159,7 +1068,6 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   const ourScore = game.meta?.ourScore ?? 0;
   const theirScore = game.meta?.theirScore ?? 0;
   const isFinal = !!game.is_final;
-  const ourAbbr = (teamName || 'TM').slice(0, 4).toUpperCase();
 
   const teamRow = (color, logoSrc, fallbackInitial, fallbackColor, fallbackBorder, name, score, isTop) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: `linear-gradient(90deg, ${color} 0%, #000 78%, #000 100%)`, borderRadius: isTop ? '6px 6px 0 0' : '0 0 6px 6px' }}>
@@ -1172,7 +1080,7 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
 
   return (
     <div style={{ borderRadius: 6, overflow: 'hidden', borderBottom: `1px solid ${COLORS.border}` }}>
-      {teamRow(COLORS.navy, logo, ourAbbr.slice(0, 1), COLORS.gold, null, ourAbbr, ourScore, true)}
+      {teamRow(COLORS.navy, logo, (teamName || '?').slice(0, 1), COLORS.gold, null, teamName || 'TM', ourScore, true)}
       <div style={{ padding: '2px 0', textAlign: 'center', background: '#0d1b2e' }}>
         {isFinal ? <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
           : <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.gold }}>IN PROGRESS</div>}
@@ -1241,12 +1149,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
   return (
     <div>
       {hudlCompareGame && (
-        <HudlCompareModal
-          game={hudlCompareGame}
-          team={team}
-          onClose={() => setHudlCompareGame(null)}
-          onSaved={() => { loadGames(); }}
-        />
+        <HudlCompareModal game={hudlCompareGame} team={team} onClose={() => setHudlCompareGame(null)} onSaved={() => { loadGames(); }} />
       )}
 
       <div style={{ border: `1px solid ${COLORS.border}`, background: COLORS.navyMid, padding: 16, marginBottom: 20, borderRadius: 10 }}>
