@@ -75,12 +75,8 @@ function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfir
           width: 150,
           background: 'rgba(10,20,40,0.97)',
           border: `2px solid ${COLORS.gold}`,
-          borderRadius: 12,
-          padding: '8px 6px',
-          zIndex: 50,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
+          borderRadius: 12, padding: '8px 6px', zIndex: 50,
+          display: 'flex', flexDirection: 'column', gap: 6,
         }}>
           <div style={{ fontSize: 10, color: COLORS.muted, textAlign: 'center', fontWeight: 700, marginBottom: 2 }}>
             {pendingShot.is2pt ? '2PT' : '3PT'} — Make or Miss?
@@ -135,6 +131,424 @@ function StarterPicker({ players, onConfirm }) {
 }
 
 
+// ── Hudl Compare Modal ───────────────────────────────────────────────────────
+function HudlCompareModal({ game, team, onClose, onSaved }) {
+  const { colors: COLORS } = useTheme();
+  const [step, setStep] = useState('upload');
+  const [error, setError] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [parsedData, setParsedData] = useState(null);
+  const [matchedStats, setMatchedStats] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
+      .then(({ data }) => { if (data) setPlayers(data); });
+  }, [team.id]);
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setStep('parsing');
+    setError(null);
+
+    try {
+      const base64Data = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = () => rej(new Error('Read failed'));
+        r.readAsDataURL(file);
+      });
+
+      const prompt = `You are parsing a Hudl basketball box score PDF. Extract player stats for OUR team only (the first team listed).
+
+Return ONLY valid JSON, no markdown:
+{
+  "players": [
+    {
+      "number": "<jersey number digits only>",
+      "name": "<player name>",
+      "pts": <number>,
+      "fgm": <number>,
+      "fga": <number>,
+      "fg3m": <number>,
+      "fg3a": <number>,
+      "ftm": <number>,
+      "fta": <number>,
+      "oreb": <number>,
+      "dreb": <number>,
+      "ast": <number>,
+      "defl": <number>,
+      "stl": <number>,
+      "blk": <number>,
+      "to": <number>,
+      "pf": <number>,
+      "chg": <number>
+    }
+  ]
+}
+
+Rules:
+- Only include players with any non-zero stats
+- jersey number = digits only, no # symbol
+- fgm/fga = TOTAL field goals including 3s
+- Missing stats = 0`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
+              { type: 'text', text: prompt },
+            ],
+          }],
+        }),
+      });
+
+      const data = await response.json();
+      const text = data.content?.map(i => i.text || '').join('').trim();
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      setParsedData(parsed);
+
+      // Match Hudl players to roster by jersey number, auto-assign if match found
+      const matched = (parsed.players || []).map(hp => {
+        const rosterPlayer = players.find(p =>
+          String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim()
+        );
+        return {
+          hudlName: hp.name,
+          hudlNumber: hp.number,
+          rosterPlayerId: rosterPlayer?.id || null,
+          hudlStats: hp,
+        };
+      });
+      setMatchedStats(matched);
+      setStep('compare');
+    } catch (err) {
+      setError('Failed to parse PDF: ' + err.message);
+      setStep('upload');
+    }
+  };
+
+  const setRosterMatch = (idx, playerId) => {
+    setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
+  };
+
+  // Convert hudl stats to XOVR stat keys
+  const hudlToXovr = (s) => ({
+    '2PM': Math.max(0, (s.fgm || 0) - (s.fg3m || 0)),
+    '2PA': Math.max(0, (s.fga || 0) - (s.fg3a || 0)),
+    '3PM': s.fg3m || 0,
+    '3PA': s.fg3a || 0,
+    'FTM': s.ftm || 0,
+    'FTA': s.fta || 0,
+    'O': s.oreb || 0,
+    'D': s.dreb || 0,
+    'AST': s.ast || 0,
+    'DF': s.defl || 0,
+    'STL': s.stl || 0,
+    'BS': s.blk || 0,
+    'TO': s.to || 0,
+    'PF': s.pf || 0,
+    'CHG_taken': s.chg || 0,
+  });
+
+  // Stat display labels for comparison
+  const COMPARE_STATS = [
+    { key: '2PM', label: '2PM' }, { key: '2PA', label: '2PA' },
+    { key: '3PM', label: '3PM' }, { key: '3PA', label: '3PA' },
+    { key: 'FTM', label: 'FTM' }, { key: 'FTA', label: 'FTA' },
+    { key: 'O', label: 'OREB' }, { key: 'D', label: 'DREB' },
+    { key: 'AST', label: 'AST' }, { key: 'DF', label: 'DEFL' },
+    { key: 'STL', label: 'STL' }, { key: 'BS', label: 'BLK' },
+    { key: 'TO', label: 'TO' }, { key: 'PF', label: 'PF' },
+    { key: 'CHG_taken', label: 'CHG' },
+  ];
+
+  // Build comparison rows — current XOVR stats vs Hudl
+  const buildComparison = () => {
+    return matchedStats
+      .filter(m => m.rosterPlayerId)
+      .map(m => {
+        const xovrStats = game.player_stats?.[m.rosterPlayerId] || {};
+        const hudlXovr = hudlToXovr(m.hudlStats);
+        const diffs = COMPARE_STATS.filter(s => (xovrStats[s.key] || 0) !== (hudlXovr[s.key] || 0));
+        return {
+          rosterPlayerId: m.rosterPlayerId,
+          player: players.find(p => p.id === m.rosterPlayerId),
+          hudlName: m.hudlName,
+          hudlNumber: m.hudlNumber,
+          xovrStats,
+          hudlXovr,
+          diffs,
+          // Per-stat accepted values — start with XOVR values
+          accepted: { ...xovrStats },
+        };
+      });
+  };
+
+  const [comparisons, setComparisons] = useState([]);
+  const [showFull, setShowFull] = useState({});
+
+  useEffect(() => {
+    if (step === 'compare' && matchedStats.length > 0 && players.length > 0) {
+      setComparisons(buildComparison());
+    }
+  }, [step, matchedStats, players]);
+
+  const acceptHudl = (playerIdx, statKey) => {
+    setComparisons(prev => prev.map((c, i) => {
+      if (i !== playerIdx) return c;
+      return { ...c, accepted: { ...c.accepted, [statKey]: c.hudlXovr[statKey] } };
+    }));
+  };
+
+  const acceptXovr = (playerIdx, statKey) => {
+    setComparisons(prev => prev.map((c, i) => {
+      if (i !== playerIdx) return c;
+      return { ...c, accepted: { ...c.accepted, [statKey]: c.xovrStats[statKey] || 0 } };
+    }));
+  };
+
+  const acceptAllHudlForPlayer = (playerIdx) => {
+    setComparisons(prev => prev.map((c, i) => {
+      if (i !== playerIdx) return c;
+      const newAccepted = { ...c.accepted };
+      c.diffs.forEach(s => { newAccepted[s.key] = c.hudlXovr[s.key]; });
+      return { ...c, accepted: newAccepted };
+    }));
+  };
+
+  const acceptAllXovrForPlayer = (playerIdx) => {
+    setComparisons(prev => prev.map((c, i) => {
+      if (i !== playerIdx) return c;
+      const newAccepted = { ...c.accepted };
+      c.diffs.forEach(s => { newAccepted[s.key] = c.xovrStats[s.key] || 0; });
+      return { ...c, accepted: newAccepted };
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updatedStats = { ...game.player_stats };
+      comparisons.forEach(c => {
+        updatedStats[c.rosterPlayerId] = { ...(updatedStats[c.rosterPlayerId] || {}), ...c.accepted };
+      });
+      const { error } = await supabase.from('games').update({
+        player_stats: updatedStats,
+        updated_at: new Date().toISOString(),
+      }).eq('id', game.id);
+      if (error) throw new Error(error.message);
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError('Save failed: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalDiffs = comparisons.reduce((n, c) => n + c.diffs.filter(s => (c.accepted[s.key] ?? c.xovrStats[s.key] ?? 0) !== (c.xovrStats[s.key] ?? 0)).length, 0);
+  const totalDiscrepancies = comparisons.reduce((n, c) => n + c.diffs.length, 0);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: COLORS.navyMid, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: COLORS.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
+        <div style={{ color: COLORS.gold, fontWeight: 800, fontSize: 13 }}>📄 Hudl Compare</div>
+        {step === 'compare' && comparisons.length > 0 && (
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding: '6px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        )}
+        {step !== 'compare' && <div style={{ width: 60 }} />}
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+
+        {/* Upload */}
+        {step === 'upload' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
+            <div style={{ fontSize: 48 }}>📄</div>
+            <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Upload Hudl Box Score</div>
+            <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
+              Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight any discrepancies.
+            </div>
+            {error && (
+              <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px' }}>
+                {error}
+              </div>
+            )}
+            <label style={{ padding: '14px 28px', background: COLORS.gold, borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+              Choose PDF
+              <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
+            </label>
+          </div>
+        )}
+
+        {/* Parsing */}
+        {step === 'parsing' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
+            <div style={{ fontSize: 48 }}>🤖</div>
+            <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Reading box score…</div>
+            <div style={{ color: COLORS.muted, fontSize: 13 }}>Claude is extracting stats from your Hudl PDF</div>
+          </div>
+        )}
+
+        {/* Map players before compare */}
+        {step === 'compare' && matchedStats.some(m => !m.rosterPlayerId) && (
+          <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.gold}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>Some players need to be mapped to your roster:</div>
+            {matchedStats.map((m, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 4 }}>#{m.hudlNumber} {m.hudlName}</div>
+                <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)}
+                  style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, boxSizing: 'border-box' }}>
+                  <option value="">— Skip this player —</option>
+                  {players.map(p => <option key={p.id} value={p.id}>#{p.number || '—'} {p.name}</option>)}
+                </select>
+              </div>
+            ))}
+            <button onClick={() => setComparisons(buildComparison())}
+              style={{ width: '100%', marginTop: 8, padding: 10, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+              Run Comparison →
+            </button>
+          </div>
+        )}
+
+        {/* Comparison */}
+        {step === 'compare' && comparisons.length > 0 && (
+          <div>
+            {/* Summary */}
+            <div style={{ background: totalDiscrepancies > 0 ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)', border: `1px solid ${totalDiscrepancies > 0 ? COLORS.red : COLORS.green}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
+              {totalDiscrepancies > 0 ? (
+                <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>
+                  ⚠️ <span style={{ color: COLORS.red }}>{totalDiscrepancies} discrepanc{totalDiscrepancies === 1 ? 'y' : 'ies'}</span> found across {comparisons.filter(c => c.diffs.length > 0).length} player{comparisons.filter(c => c.diffs.length > 0).length !== 1 ? 's' : ''}.
+                  <span style={{ color: COLORS.muted, fontWeight: 400 }}> Tap each stat to choose XOVR or Hudl value.</span>
+                </div>
+              ) : (
+                <div style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>✅ All stats match between XOVR and Hudl!</div>
+              )}
+            </div>
+
+            {error && (
+              <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>
+                {error}
+              </div>
+            )}
+
+            {comparisons.map((c, playerIdx) => {
+              const hasDiffs = c.diffs.length > 0;
+              const isExpanded = showFull[playerIdx];
+              const statsToShow = isExpanded ? COMPARE_STATS : c.diffs;
+
+              return (
+                <div key={c.rosterPlayerId} style={{ background: COLORS.navyMid, border: `1px solid ${hasDiffs ? COLORS.red : COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+                  {/* Player header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
+                        #{c.player?.number || '—'} {c.player?.name}
+                      </div>
+                      <div style={{ fontSize: 10, color: COLORS.muted }}>Hudl: #{c.hudlNumber} {c.hudlName}</div>
+                    </div>
+                    {hasDiffs ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => acceptAllHudlForPlayer(playerIdx)}
+                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#4db8c8' }}>
+                          All Hudl
+                        </button>
+                        <button onClick={() => acceptAllXovrForPlayer(playerIdx)}
+                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: COLORS.goldLight, border: `1px solid ${COLORS.gold}`, color: COLORS.gold }}>
+                          All XOVR
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: COLORS.green, fontWeight: 700 }}>✅ Match</div>
+                    )}
+                  </div>
+
+                  {/* Discrepancies first */}
+                  {hasDiffs && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: COLORS.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Discrepancies</div>
+                      {c.diffs.map(s => {
+                        const xovrVal = c.xovrStats[s.key] || 0;
+                        const hudlVal = c.hudlXovr[s.key] || 0;
+                        const accepted = c.accepted[s.key] ?? xovrVal;
+                        const choseXovr = accepted === xovrVal;
+                        const choseHudl = accepted === hudlVal;
+                        return (
+                          <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
+                            <div style={{ width: 40, fontSize: 11, fontWeight: 700, color: COLORS.muted }}>{s.label}</div>
+                            <button onClick={() => acceptXovr(playerIdx, s.key)}
+                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseXovr ? COLORS.gold : COLORS.border}`, background: choseXovr ? COLORS.goldLight : COLORS.navyDark, color: choseXovr ? COLORS.gold : COLORS.text }}>
+                              {xovrVal}
+                              <div style={{ fontSize: 9, fontWeight: 400, color: choseXovr ? COLORS.gold : COLORS.muted }}>XOVR</div>
+                            </button>
+                            <div style={{ color: COLORS.muted, fontSize: 12 }}>vs</div>
+                            <button onClick={() => acceptHudl(playerIdx, s.key)}
+                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseHudl && !choseXovr ? '#4db8c8' : COLORS.border}`, background: choseHudl && !choseXovr ? 'rgba(0,51,60,0.6)' : COLORS.navyDark, color: choseHudl && !choseXovr ? '#4db8c8' : COLORS.text }}>
+                              {hudlVal}
+                              <div style={{ fontSize: 9, fontWeight: 400, color: choseHudl && !choseXovr ? '#4db8c8' : COLORS.muted }}>Hudl</div>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Full stats toggle */}
+                  <button onClick={() => setShowFull(prev => ({ ...prev, [playerIdx]: !prev[playerIdx] }))}
+                    style={{ width: '100%', padding: '6px 0', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer', marginBottom: isExpanded ? 8 : 0 }}>
+                    {isExpanded ? '▲ Hide full stats' : '▼ Show all stats'}
+                  </button>
+
+                  {/* Full stats table */}
+                  {isExpanded && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+                      {COMPARE_STATS.map(s => {
+                        const xovrVal = c.xovrStats[s.key] || 0;
+                        const hudlVal = c.hudlXovr[s.key] || 0;
+                        const isDiff = xovrVal !== hudlVal;
+                        const accepted = c.accepted[s.key] ?? xovrVal;
+                        return (
+                          <div key={s.key} style={{ background: isDiff ? 'rgba(220,38,38,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '5px 6px', border: `1px solid ${isDiff ? 'rgba(220,38,38,0.3)' : COLORS.border}` }}>
+                            <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, marginBottom: 2 }}>{s.label}</div>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: isDiff ? COLORS.gold : COLORS.text }}>{accepted}</span>
+                              {isDiff && <span style={{ fontSize: 9, color: COLORS.muted }}>Hudl:{hudlVal}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <button onClick={handleSave} disabled={saving}
+              style={{ width: '100%', padding: 14, background: COLORS.gold, border: 'none', borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
+              {saving ? 'Saving…' : `Save Changes →`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const { colors: COLORS, logo, teamName, abbr: teamAbbr, court, lane } = useTheme();
   const [players, setPlayers] = useState([]);
@@ -168,7 +582,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [specialPicker, setSpecialPicker] = useState(null);
   const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory || []);
   const [statDefsReady, setStatDefsReady] = useState(false);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -402,13 +815,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     );
   }
 
-  // Abbreviations — use stored abbr from theme for our team
   const ourAbbr = teamAbbr || (teamName || 'TM').slice(0, 4).toUpperCase();
   const oppAbbr = opponent?.abbr || (opponent?.name || game.meta?.opponentName || 'OPP').slice(0, 4).toUpperCase();
 
   return (
     <div>
-      {/* Clock edit modal */}
       {editingClock && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: '100%', maxWidth: 320, maxHeight: '85vh', overflowY: 'auto' }}>
@@ -430,7 +841,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Format edit modal */}
       {editingFormat && draftFormat && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, padding: 16 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: '100%', maxWidth: 320, maxHeight: '85vh', overflowY: 'auto' }}>
@@ -448,7 +858,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Scoreboard — abbreviations, compact */}
       {(() => {
         const ourPrimary = COLORS.navy;
         const oppPrimary = opponent?.primary_color || '#6b7280';
@@ -456,8 +865,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         return (
           <div style={{ display: 'flex', borderBottom: `2px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8, background: `linear-gradient(90deg, ${ourPrimary} 0%, #000 48%, #000 52%, ${oppPrimary} 100%)` }}>
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: 0 }}>
-              {logo
-                ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+              {logo ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourAbbr.slice(0, 1)}</div>}
               <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{ourAbbr}</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</div>
@@ -473,15 +881,13 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, minWidth: 0 }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</div>
               <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{oppAbbr}</div>
-              {opponent?.logo_url
-                ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+              {opponent?.logo_url ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppAbbr.slice(0, 1)}</div>}
             </div>
           </div>
         );
       })()}
 
-      {/* Players + Court + Controls */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'stretch' }}>
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 260 }}>
           {players.filter(p => onCourt.includes(p.id)).map(p => {
@@ -502,8 +908,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
         <div style={{ flex: 1 }}>
           <MiniCourtTappable
-            courtColor={court}
-            laneColor={lane}
+            courtColor={court} laneColor={lane}
             onTap={handleCourtTap}
             pendingShot={pendingShot}
             onConfirmShot={confirmShot}
@@ -531,7 +936,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </button>
       )}
 
-      {/* Game log — 1.5 rows */}
       {actionHistory.length > 0 && (
         <div ref={playLogRef} style={{ height: 30, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
           {actionHistory.map((a, i) => {
@@ -551,7 +955,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Stat buttons */}
       {(() => {
         const GREEN_KEYS = ["O", "D", "AST", "STL", "FTM"];
         const greenDefs = GREEN_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
@@ -619,13 +1022,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         return (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              {/* Positive side */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {greenDefs.map(renderBtn)}
                 {spPosBtn()}
               </div>
               <div style={{ width: 1, background: COLORS.border, alignSelf: 'stretch' }} />
-              {/* Negative side: TO|PF / AP|FTA / SP-|UNDO */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {toBtn && renderBtn(toBtn)}
                 {pfBtn && renderBtn(pfBtn)}
@@ -665,7 +1066,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         );
       })()}
 
-      {/* Subs modal */}
       {showSubs && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: 320, maxHeight: '80vh', overflowY: 'auto' }}>
@@ -777,6 +1177,7 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   const ourScore = game.meta?.ourScore ?? 0;
   const theirScore = game.meta?.theirScore ?? 0;
   const isFinal = !!game.is_final;
+  const ourAbbr = (teamName || 'TM').slice(0, 4).toUpperCase();
 
   const teamRow = (color, logoSrc, fallbackInitial, fallbackColor, fallbackBorder, name, score, isTop) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: `linear-gradient(90deg, ${color} 0%, #000 78%, #000 100%)`, borderRadius: isTop ? '6px 6px 0 0' : '0 0 6px 6px' }}>
@@ -789,7 +1190,7 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
 
   return (
     <div style={{ borderRadius: 6, overflow: 'hidden', borderBottom: `1px solid ${COLORS.border}` }}>
-      {teamRow(COLORS.navy, logo, (teamName || '?').slice(0, 1), COLORS.gold, null, teamName || 'TM', ourScore, true)}
+      {teamRow(COLORS.navy, logo, ourAbbr.slice(0, 1), COLORS.gold, null, ourAbbr, ourScore, true)}
       <div style={{ padding: '2px 0', textAlign: 'center', background: '#0d1b2e' }}>
         {isFinal ? <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
           : <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.gold }}>IN PROGRESS</div>}
@@ -809,6 +1210,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
   const [date, setDate] = useState('');
   const [formatKey, setFormatKey] = useState(GAME_FORMAT_PRESETS[0].key);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
+  const [hudlCompareGame, setHudlCompareGame] = useState(null);
 
   const loadGames = () => {
     supabase.from('games').select('*, opponents(name)').eq('season_id', season.id).order('created_at', { ascending: false })
@@ -856,6 +1258,16 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
 
   return (
     <div>
+      {/* Hudl Compare Modal */}
+      {hudlCompareGame && (
+        <HudlCompareModal
+          game={hudlCompareGame}
+          team={team}
+          onClose={() => setHudlCompareGame(null)}
+          onSaved={() => { loadGames(); }}
+        />
+      )}
+
       <div style={{ border: `1px solid ${COLORS.border}`, background: COLORS.navyMid, padding: 16, marginBottom: 20, borderRadius: 10 }}>
         <h4 style={{ color: COLORS.gold, marginTop: 0, marginBottom: 12, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Start New Game</h4>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -879,17 +1291,22 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
             <div key={g.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 8, background: COLORS.navyMid }}>
               <MiniGameScoreboard game={g} opponentRecord={opponentRecord} COLORS={COLORS} logo={logo} teamName={teamName} />
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                {!g.is_final && (
+                {!g.is_final ? (
                   <button onClick={() => setActiveGame(g)}
                     style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', color: COLORS.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
                     Continue Tagging
                   </button>
-                )}
-                {g.is_final && (
-                  <button onClick={() => setActiveGame(g)}
-                    style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                    View / Edit
-                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => setActiveGame(g)}
+                      style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                      View / Edit
+                    </button>
+                    <button onClick={() => setHudlCompareGame(g)}
+                      style={{ padding: '8px 10px', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#4db8c8', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                      📄 Hudl
+                    </button>
+                  </>
                 )}
                 {confirmingDeleteId === g.id ? (
                   <>
