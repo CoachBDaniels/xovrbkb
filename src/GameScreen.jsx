@@ -4,13 +4,11 @@ import { useTheme } from './ThemeContext';
 import { STAT_DEFS, GAME_FORMAT_PRESETS, emptyPlayerStats, calcPts, calcEff, CourtSVG, ShotChartView, BoxScoreReport, FormatPicker, applyStatDefs } from './GameReports';
 
 
-// Detect inside/outside 3PT arc
-// MiniCourt SVG viewBox is 300x260, basket at (150,32), 3PT arc radius ~145
 function isInsideArc(x, y) {
   const svgX = x * 3;
   const svgY = y * 2.6;
   const dist = Math.sqrt((svgX - 150) ** 2 + (svgY - 32) ** 2);
-  if (svgX <= 18 || svgX >= 282) return false; // corner 3
+  if (svgX <= 18 || svgX >= 282) return false;
   return dist < 145;
 }
 
@@ -35,7 +33,7 @@ function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfir
   };
 
   const handleClick = (e) => {
-    if (pendingShot) return; // waiting for make/miss
+    if (pendingShot) return;
     const c = getCoords(e);
     if (!c) return;
     onTap(c.x, c.y, c.px, c.py, c.rectW, c.rectH);
@@ -67,14 +65,8 @@ function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfir
         <path d="M18 120 A145 145 0 0 0 282 120" fill="none" stroke="#fff" strokeWidth="1.5" />
         <line x1="5" y1="252" x2="295" y2="252" stroke="#fff" strokeWidth="1.5" />
         <path d="M115 252 A35 35 0 0 1 185 252" fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="4 3" />
-        {!pendingShot && (
-          <text x="150" y="200" textAnchor="middle" fontSize="10" fill="rgba(255,255,255,0.6)" fontWeight="700">
-            tap court to log shot
-          </text>
-        )}
       </svg>
 
-      {/* Floating make/miss picker at tap spot */}
       {pendingShot && (
         <div style={{
           position: 'absolute',
@@ -219,7 +211,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const tagStat = (playerId, key) => {
     if (!playerId) return;
     commitStatOnly(playerId, key, false);
-    setSelectedPlayer(null); // deselect after every stat
+    setSelectedPlayer(null);
   };
 
 
@@ -237,7 +229,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     commitStatOnly(selectedPlayer, key, true);
     setShotLog(prev => [...prev, { playerId: selectedPlayer, statKey: key, x, y, make, period: currentPeriod }]);
     setPendingShot(null);
-    setSelectedPlayer(null); // deselect after shot
+    setSelectedPlayer(null);
   };
 
 
@@ -525,7 +517,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           })}
         </div>
 
-        {/* Court — tappable */}
+        {/* Court — tappable, no text */}
         <div style={{ flex: 1 }}>
           <MiniCourtTappable
             courtColor={court}
@@ -536,25 +528,13 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             onCancelShot={() => setPendingShot(null)}
             COLORS={COLORS}
           />
-          {!selectedPlayer && !pendingShot && (
-            <div style={{ textAlign: 'center', fontSize: 10, color: COLORS.muted, marginTop: 4 }}>Tap a player first to tag stats or log a shot</div>
-          )}
-          {selectedPlayer && !pendingShot && (
-            <div style={{ textAlign: 'center', fontSize: 10, color: COLORS.gold, marginTop: 4, fontWeight: 700 }}>
-              #{players.find(p => p.id === selectedPlayer)?.number} {players.find(p => p.id === selectedPlayer)?.name?.split(' ')[0]} — tap court for shot or use buttons below
-            </div>
-          )}
         </div>
 
-        {/* Right controls */}
+        {/* Right controls — no Undo here anymore */}
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button onClick={() => { setSelectedPlayer('OPP'); }}
+          <button onClick={() => setSelectedPlayer('OPP')}
             style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 11 }}>
             {game.meta?.opponentName ? game.meta.opponentName.slice(0, 10) : 'Opponent'}
-          </button>
-          <button onClick={undoLastAction} disabled={actionHistory.length === 0}
-            style={{ padding: '8px 2px', background: actionHistory.length === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold, fontWeight: 700, fontSize: 9, cursor: actionHistory.length === 0 ? 'default' : 'pointer', opacity: actionHistory.length === 0 ? 0.5 : 1 }}>
-            ↩ Undo
           </button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
           <button onClick={() => setShowLiveBoxScore(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
@@ -570,7 +550,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </button>
       )}
 
-      {/* Game log — moved below court */}
+      {/* Game log — below court */}
       {actionHistory.length > 0 && (
         <div ref={playLogRef} style={{ height: 44, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
           {actionHistory.map((a, i) => {
@@ -590,7 +570,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Stat buttons — no shot buttons, more gap */}
+      {/* Stat buttons — Undo in bottom-right of negative grid */}
       {(() => {
         const GREEN_KEYS = ["O", "D", "AST", "STL", "FTM"];
         const RED_KEYS = ["FTA", "TO", "AP", "PF"];
@@ -598,7 +578,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         const redDefs = RED_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
         const LIVE_KEYS = new Set([...GREEN_KEYS, ...RED_KEYS]);
         const specialPosDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value >= 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
-        const specialNegDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value < 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
 
         const btnStyle = (isGreen) => ({
           padding: '10px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center',
@@ -615,44 +594,61 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           </button>
         );
 
-        const renderSpBtn = (mode) => {
-          const isGreen = mode === 'pos';
-          const opts = isGreen ? specialPosDefs : specialNegDefs;
-          const isOpen = specialPicker === mode;
+        const renderSpBtn = () => {
+          const opts = specialPosDefs;
+          const isOpen = specialPicker === 'pos';
           return (
-            <button key={`sp-${mode}`} disabled={opts.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : mode)}
-              style={{ ...btnStyle(isGreen), opacity: (selectedPlayer && opts.length > 0) ? 1 : 0.5, position: 'relative' }}>
+            <button key="sp-pos" disabled={opts.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'pos')}
+              style={{ ...btnStyle(true), opacity: (selectedPlayer && opts.length > 0) ? 1 : 0.5, position: 'relative' }}>
               <div style={{ fontSize: 9, fontWeight: 700 }}>SPECIAL</div>
               <div style={{ fontSize: 13, fontWeight: 900 }}>SP{isOpen ? ' ▲' : ''}</div>
             </button>
           );
         };
 
+        const undoBtn = (
+          <button
+            key="undo"
+            onClick={undoLastAction}
+            disabled={actionHistory.length === 0}
+            style={{
+              padding: '10px 2px', borderRadius: 7, cursor: actionHistory.length === 0 ? 'default' : 'pointer', textAlign: 'center',
+              background: 'rgba(255,255,255,0.05)',
+              border: `2px solid ${actionHistory.length === 0 ? COLORS.border : COLORS.gold}`,
+              color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold,
+              fontWeight: 700, opacity: actionHistory.length === 0 ? 0.4 : 1,
+            }}>
+            <div style={{ fontSize: 10 }}>UNDO</div>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
+          </button>
+        );
+
         return (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
+              {/* Positive side */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {greenDefs.map(renderQuickBtn)}
-                {renderSpBtn('pos')}
+                {renderSpBtn()}
               </div>
               <div style={{ width: 1, background: COLORS.border, alignSelf: 'stretch' }} />
+              {/* Negative side — RED_KEYS + Undo in last slot */}
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {redDefs.map(renderQuickBtn)}
-                {renderSpBtn('neg')}
+                {undoBtn}
               </div>
             </div>
 
-            {specialPicker && (() => {
-              const opts = specialPicker === 'pos' ? specialPosDefs : specialNegDefs;
-              const isGreen = specialPicker === 'pos';
+            {specialPicker === 'pos' && (() => {
+              const opts = specialPosDefs;
               return (
-                <div style={{ position: 'absolute', bottom: '100%', [isGreen ? 'left' : 'right']: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${isGreen ? COLORS.green : COLORS.red}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>{isGreen ? 'Special (+)' : 'Special (-)'}</div>
+                <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.green}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (+)</div>
                   {opts.map(def => (
                     <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
                       <span>{def.label}</span>
-                      <span style={{ color: isGreen ? COLORS.green : COLORS.red, fontWeight: 900 }}>{def.value >= 0 ? '+' : ''}{def.value}</span>
+                      <span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span>
                     </button>
                   ))}
                 </div>
@@ -723,17 +719,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Live box score */}
       {showLiveBoxScore && (
         <BoxScoreReport team={team} teamName={teamName} logo={logo} opponent={opponent || { name: game.meta?.opponentName }} players={players} stats={stats} minutesLog={minutesLog} checkInClock={checkInClock} onCourt={onCourt} clockTotalSeconds={clockTotalSeconds} shotLog={shotLog} court={court} lane={lane} onClose={() => setShowLiveBoxScore(false)} />
       )}
 
-      {/* Shot chart */}
       {showShotChart && (
         <ShotChartView players={players} shotLog={shotLog} opponent={opponent || { name: game.meta?.opponentName }} court={court} lane={lane} onClose={() => setShowShotChart(false)} />
       )}
 
-      {/* End game report */}
       {showReport && (
         <div style={{ position: 'fixed', inset: 0, background: '#fff', color: COLORS.textDark, zIndex: 200, overflowY: 'auto', padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
