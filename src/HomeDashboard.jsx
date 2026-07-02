@@ -1,4 +1,4 @@
-mport { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { useTheme } from './ThemeContext';
 import { FinishedGameView, GAME_FORMAT_PRESETS, FormatPicker } from './GameReports';
