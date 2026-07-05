@@ -136,7 +136,7 @@ function OpponentRosterScreen({ opponent, role, onBack }) {
       position: newPos.trim() || null,
     });
     if (!error) { setNewName(''); setNewNumber(''); setNewPos(''); loadPlayers(); }
-    else alert('Error adding player — make sure the opponent_players table exists in Supabase.');
+    else alert('Error adding player: ' + error.message);
   };
 
   const removePlayer = async (id) => {
@@ -156,11 +156,9 @@ function OpponentRosterScreen({ opponent, role, onBack }) {
       <button onClick={onBack} style={{ marginBottom: 14, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>
         ← Back to {opponent.name}
       </button>
-
       <div style={{ fontSize: 11, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
         {opponent.name} — Roster
       </div>
-
       {canEdit && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
           <input placeholder="#" value={newNumber} onChange={e => setNewNumber(e.target.value)}
@@ -178,7 +176,6 @@ function OpponentRosterScreen({ opponent, role, onBack }) {
           </button>
         </div>
       )}
-
       {players.map(p => {
         const isEditing = editingId === p.id;
         return (
@@ -262,7 +259,6 @@ function OpponentsScreen({ team, role }) {
     updateOpponentField(id, 'logo_url', dataUrl);
   };
 
-  // Show roster screen if selected
   if (rosterOpponent) {
     return <OpponentRosterScreen opponent={rosterOpponent} role={role} onBack={() => setRosterOpponent(null)} />;
   }
@@ -482,7 +478,13 @@ function App() {
   useEffect(() => {
     if (!session) return;
     supabase.from('team_memberships').select('role, teams(id, name)').then(({ data, error }) => {
-      if (!error && data) setTeams(data.map(m => ({ id: m.teams.id, name: m.teams.name, role: m.role })));
+      if (!error && data) {
+        const seen = new Set();
+        setTeams(data
+          .map(m => ({ id: m.teams.id, name: m.teams.name, role: m.role }))
+          .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; })
+        );
+      }
     });
     supabase.from('app_settings').select('product_logo').limit(1).maybeSingle()
       .then(({ data, error }) => { if (!error && data?.product_logo) setProductLogo(data.product_logo); });
