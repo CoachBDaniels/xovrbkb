@@ -89,18 +89,8 @@ function RosterScreen({ team, role }) {
                   <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                   <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>{p.grade || '—'}</div>
                 </div>
-                {canEdit && (
-                  <button onClick={() => setEditingId(p.id)}
-                    style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                    Edit
-                  </button>
-                )}
-                {canEdit && (
-                  <button onClick={() => removePlayer(p.id)}
-                    style={{ background: COLORS.redBg, border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                    Remove
-                  </button>
-                )}
+                {canEdit && <button onClick={() => setEditingId(p.id)} style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Edit</button>}
+                {canEdit && <button onClick={() => removePlayer(p.id)} style={{ background: COLORS.redBg, border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Remove</button>}
               </div>
             )}
           </div>
@@ -120,12 +110,126 @@ function fileToDataUrl(file) {
   });
 }
 
+// ── Opponent Roster Screen ───────────────────────────────────────────────────
+function OpponentRosterScreen({ opponent, role, onBack }) {
+  const { colors: COLORS } = useTheme();
+  const [players, setPlayers] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [newNumber, setNewNumber] = useState('');
+  const [newPos, setNewPos] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const canEdit = role === 'head_coach' || role === 'assistant';
+
+  const loadPlayers = () => {
+    supabase.from('opponent_players').select('*').eq('opponent_id', opponent.id).order('created_at')
+      .then(({ data, error }) => { if (!error) setPlayers(data || []); });
+  };
+
+  useEffect(() => { loadPlayers(); }, [opponent.id]);
+
+  const addPlayer = async () => {
+    if (!newName.trim()) return;
+    const { error } = await supabase.from('opponent_players').insert({
+      opponent_id: opponent.id,
+      name: newName.trim(),
+      number: newNumber.trim() || null,
+      position: newPos.trim() || null,
+    });
+    if (!error) { setNewName(''); setNewNumber(''); setNewPos(''); loadPlayers(); }
+    else alert('Error adding player — make sure the opponent_players table exists in Supabase.');
+  };
+
+  const removePlayer = async (id) => {
+    await supabase.from('opponent_players').delete().eq('id', id);
+    loadPlayers();
+  };
+
+  const updateField = async (id, field, value) => {
+    setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+    await supabase.from('opponent_players').update({ [field]: value }).eq('id', id);
+  };
+
+  const POSITIONS = ['G', 'SG', 'SF', 'PF', 'C'];
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ marginBottom: 14, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>
+        ← Back to {opponent.name}
+      </button>
+
+      <div style={{ fontSize: 11, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+        {opponent.name} — Roster
+      </div>
+
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input placeholder="#" value={newNumber} onChange={e => setNewNumber(e.target.value)}
+            style={{ width: 50, padding: 8, background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.text, boxSizing: 'border-box' }} />
+          <input placeholder="Player name" value={newName} onChange={e => setNewName(e.target.value)}
+            style={{ flex: 1, minWidth: 120, padding: 8, background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.text, boxSizing: 'border-box' }} />
+          <select value={newPos} onChange={e => setNewPos(e.target.value)}
+            style={{ width: 60, padding: 8, background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.text }}>
+            <option value="">Pos</option>
+            {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <button onClick={addPlayer}
+            style={{ padding: '8px 14px', background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 7, fontWeight: 'bold', cursor: 'pointer' }}>
+            + Add
+          </button>
+        </div>
+      )}
+
+      {players.map(p => {
+        const isEditing = editingId === p.id;
+        return (
+          <div key={p.id} style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+            {isEditing ? (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <input value={p.number || ''} onChange={e => updateField(p.id, 'number', e.target.value)} placeholder="#"
+                    style={{ width: 50, background: COLORS.navyDark, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '8px 8px', color: COLORS.text, fontSize: 13, textAlign: 'center', boxSizing: 'border-box' }} />
+                  <input value={p.name || ''} onChange={e => updateField(p.id, 'name', e.target.value)} placeholder="Player name"
+                    style={{ flex: 1, background: COLORS.navyDark, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '8px 10px', color: COLORS.text, fontSize: 13, boxSizing: 'border-box' }} />
+                  <select value={p.position || ''} onChange={e => updateField(p.id, 'position', e.target.value)}
+                    style={{ width: 60, background: COLORS.navyDark, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '8px 4px', color: COLORS.text, fontSize: 13 }}>
+                    <option value="">—</option>
+                    {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                  </select>
+                </div>
+                <button onClick={() => setEditingId(null)}
+                  style={{ width: '100%', padding: 8, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
+                  Done
+                </button>
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 7, background: COLORS.navy, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: COLORS.gold, border: `1px solid ${COLORS.border}` }}>
+                  {p.number || '—'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>{p.position || '—'}</div>
+                </div>
+                {canEdit && <button onClick={() => setEditingId(p.id)} style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Edit</button>}
+                {canEdit && <button onClick={() => removePlayer(p.id)} style={{ background: COLORS.redBg, border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Remove</button>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {players.length === 0 && <p style={{ color: COLORS.muted }}>No players added yet.</p>}
+    </div>
+  );
+}
+
+// ── Opponents Screen ─────────────────────────────────────────────────────────
 function OpponentsScreen({ team, role }) {
   const { colors: COLORS } = useTheme();
   const [opponents, setOpponents] = useState([]);
   const [newName, setNewName] = useState('');
   const [newAbbr, setNewAbbr] = useState('');
   const [editingId, setEditingId] = useState(null);
+  const [rosterOpponent, setRosterOpponent] = useState(null);
   const canEdit = role === 'head_coach' || role === 'assistant';
 
   const loadOpponents = () => {
@@ -157,6 +261,11 @@ function OpponentsScreen({ team, role }) {
     const dataUrl = await fileToDataUrl(file);
     updateOpponentField(id, 'logo_url', dataUrl);
   };
+
+  // Show roster screen if selected
+  if (rosterOpponent) {
+    return <OpponentRosterScreen opponent={rosterOpponent} role={role} onBack={() => setRosterOpponent(null)} />;
+  }
 
   return (
     <div>
@@ -208,6 +317,10 @@ function OpponentsScreen({ team, role }) {
                   <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.name}</div>
                   <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 600 }}>{o.abbr || '—'}</div>
                 </div>
+                <button onClick={() => setRosterOpponent(o)}
+                  style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, color: COLORS.gold, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                  Roster
+                </button>
                 {canEdit && <button onClick={() => setEditingId(o.id)} style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Edit</button>}
                 {canEdit && <button onClick={() => removeOpponent(o.id)} style={{ background: COLORS.redBg, border: `1px solid ${COLORS.red}`, color: COLORS.red, borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Remove</button>}
               </div>
@@ -303,7 +416,7 @@ function TeamView({ team, onBack }) {
 
 function CourtBackground() {
   const W = 1080, H = 660;
-  const stroke = '#333333';
+  const stroke = '#1a5566';
   const sw = 2.5;
   const margin = 30;
   const courtL = margin, courtR = W - margin, courtT = margin, courtB = H - margin;
@@ -344,15 +457,9 @@ function CourtBackground() {
 }
 
 const BW = {
-  navyDark: '#060f1a',
-  navyMid: '#0d1b2e',
-  navy: '#1a3a6b',
-  border: '#243d6b',
-  gold: '#c8a84b',
-  goldLight: 'rgba(200,168,75,0.15)',
-  text: '#e8edf5',
-  muted: '#8a99b8',
-  textDark: '#0d1b2e',
+  navyDark: '#060f1a', navyMid: '#0d1b2e', navy: '#1a3a6b',
+  border: '#243d6b', gold: '#c8a84b', goldLight: 'rgba(200,168,75,0.15)',
+  text: '#e8edf5', muted: '#8a99b8', textDark: '#0d1b2e',
 };
 
 function App() {
@@ -403,25 +510,24 @@ function App() {
   const handleSignOut = async () => { setSelectedTeam(null); await supabase.auth.signOut(); };
 
   const XOVR = {
-    bg: '#1a1a1a',
+    teal: '#1a1a1a',
     gold: '#e7b977',
     text: '#ffffff',
     muted: 'rgba(255,255,255,0.45)',
     inputBg: 'rgba(255,255,255,0.08)',
-    border: 'rgba(255,255,255,0.15)',
   };
 
   const LOGO_URL = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: XOVR.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: XOVR.teal, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: XOVR.gold, fontFamily: 'sans-serif', fontSize: 16, letterSpacing: 2 }}>Loading...</div>
     </div>
   );
 
   if (!session) {
     return (
-      <div style={{ minHeight: '100vh', background: XOVR.bg, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ minHeight: '100vh', background: XOVR.teal, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ position: 'relative', height: '48vh', minHeight: 280, overflow: 'hidden', flexShrink: 0 }}>
           <CourtBackground />
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -429,7 +535,7 @@ function App() {
               style={{ width: 240, height: 240, objectFit: 'contain', filter: 'drop-shadow(0 6px 28px rgba(0,0,0,0.8))' }} />
           </div>
         </div>
-        <div style={{ flex: 1, background: XOVR.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 28, paddingBottom: 32, paddingLeft: 24, paddingRight: 24 }}>
+        <div style={{ flex: 1, background: XOVR.teal, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 28, paddingBottom: 32, paddingLeft: 24, paddingRight: 24 }}>
           <div style={{
             fontSize: 30, fontWeight: 900, marginBottom: 26, textAlign: 'center',
             color: XOVR.gold, WebkitTextStroke: '1.5px #000',
@@ -471,9 +577,7 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: BW.navyDark, color: BW.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
-      {productLogo && (
-        <img src={productLogo} alt="" style={{ height: 80, width: 'auto', objectFit: 'contain', marginBottom: 8 }} />
-      )}
+      {productLogo && <img src={productLogo} alt="" style={{ height: 80, width: 'auto', objectFit: 'contain', marginBottom: 8 }} />}
       <img src={LOGO_URL} alt="XOVR Basketball" style={{ width: 240, height: 240, objectFit: 'contain', marginBottom: 8 }} />
       <div style={{ fontSize: 11, color: BW.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
       <div style={{ fontSize: 13, color: BW.gold, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
