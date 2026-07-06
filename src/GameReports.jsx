@@ -293,7 +293,23 @@ export function BoxScoreReport({ team, teamName, logo, opponent, players, stats,
       `}</style>
       <div id="box-score-no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#0d1b2e', borderBottom: '1px solid #243d6b', flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#e8edf5', fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: 6 }}>✕ Close</button>
-        <button onClick={() => window.print()} style={{ background: '#c8a84b', border: 'none', color: '#0d1b2e', fontWeight: 800, fontSize: 13, padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>🖨 Print / Save as PDF</button>
+        <button onClick={() => {
+  const content = document.getElementById('box-score-printable').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Box Score</title><style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Inter, sans-serif; color: #1a1a1a; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1a3a6b; color: #fff; padding: 6px 4px; text-align: center; font-weight: 700; font-size: 9px; }
+    td { padding: 5px 4px; text-align: center; border-bottom: 1px solid #dde3ef; font-size: 10px; }
+    tr:nth-child(even) { background: #f0f4fa; }
+    img { max-height: 36px; }
+    @page { size: landscape; margin: 10mm; }
+  </style></head><body>${content}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 500);
+}} style={{ background: '#c8a84b', border: 'none', color: '#0d1b2e', fontWeight: 800, fontSize: 13, padding: '8px 16px', borderRadius: 8, cursor: 'pointer' }}>🖨 Print / Save as PDF</button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: '#fff', padding: '24px 16px' }}>
         <div id="box-score-printable" style={{ maxWidth: 900, margin: '0 auto', fontFamily: 'Inter, sans-serif', color: '#1a1a1a' }}>
