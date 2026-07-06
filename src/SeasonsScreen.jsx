@@ -12,7 +12,6 @@ function fmtScheduleDate(dateStr) {
   return `${MONTH_NAMES[m - 1]} ${d}`;
 }
 
-// ── Hudl Import Modal ────────────────────────────────────────────────────────
 function HudlImportModal({ entry, team, season, opponents, onClose, onImported }) {
   const { colors: COLORS } = useTheme();
   const [step, setStep] = useState('upload');
@@ -100,7 +99,8 @@ Rules:
 - fgm/fga = TOTAL field goals including 3s
 - Missing or blank stats = 0`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // Call our Netlify function instead of Anthropic directly
+      const response = await fetch('/api/parse-hudl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,7 +123,6 @@ Rules:
       setParsedData(parsed);
       setScores({ ours: String(parsed.ourScore || ''), theirs: String(parsed.theirScore || '') });
 
-      // Auto-match our players by jersey number, fall back to null
       const matched = (parsed.ourPlayers || []).map(hp => {
         const rosterPlayer = players.find(p =>
           String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim()
@@ -132,8 +131,8 @@ Rules:
           hudlName: hp.name,
           hudlNumber: hp.number,
           rosterPlayerId: rosterPlayer?.id || null,
-          stats: hp,
-          include: true, // default include all, user can deselect
+          hudlStats: hp,
+          include: true,
         };
       });
       setMatchedStats(matched);
@@ -157,10 +156,9 @@ Rules:
     try {
       const playerStats = {};
 
-      // Our players
       matchedStats.forEach(m => {
         if (!m.include || !m.rosterPlayerId) return;
-        const s = m.stats;
+        const s = m.hudlStats;
         const fg2m = Math.max(0, (s.fgm || 0) - (s.fg3m || 0));
         const fg2a = Math.max(0, (s.fga || 0) - (s.fg3a || 0));
         playerStats[m.rosterPlayerId] = {
@@ -175,7 +173,6 @@ Rules:
         };
       });
 
-      // Opponent — sum all their players into OPP
       const oppPlayers = parsedData?.oppPlayers || [];
       const oppTotals = oppPlayers.reduce((acc, s) => {
         acc.fgm  += s.fgm  || 0; acc.fga  += s.fga  || 0;
@@ -236,20 +233,21 @@ Rules:
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: COLORS.navyMid, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: COLORS.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
-        <div style={{ color: COLORS.gold, fontWeight: 800, fontSize: 13 }}>📄 Hudl Import</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: COLORS.gold }}>
+          <span style={{ color: '#ff6a00', fontWeight: 900, fontSize: 18 }}>H</span> Hudl Import
+        </div>
         <div style={{ width: 60 }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
 
-        {/* Upload */}
         {step === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
-            <div style={{ fontSize: 48 }}>📄</div>
+            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Upload Hudl Box Score</div>
             <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center' }}>vs. {oppName} · {fmtScheduleDate(entry.date)}</div>
             <div style={{ color: COLORS.muted, fontSize: 12, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
-              Export the Box Score Report PDF from Hudl and upload it here. Claude will extract the stats and you'll match them to your current roster.
+              Export the Box Score Report PDF from Hudl and upload it here. Claude will extract the stats and you'll match them to your roster.
             </div>
             {error && (
               <div style={{ color: COLORS.red, fontSize: 13, textAlign: 'center', background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', maxWidth: 300 }}>
@@ -263,23 +261,20 @@ Rules:
           </div>
         )}
 
-        {/* Parsing */}
         {step === 'parsing' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
-            <div style={{ fontSize: 48 }}>🤖</div>
+            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Reading box score…</div>
             <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center' }}>Claude is extracting player stats from your Hudl PDF</div>
           </div>
         )}
 
-        {/* Preview */}
         {step === 'preview' && parsedData && (
           <div>
             <div style={{ fontSize: 13, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
               Review & Map Players
             </div>
 
-            {/* Score editor */}
             <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 12, marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: 10, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Our Score</div>
@@ -294,7 +289,6 @@ Rules:
               </div>
             </div>
 
-            {/* Opponent summary */}
             {parsedData.oppPlayers && parsedData.oppPlayers.length > 0 && (() => {
               const totals = parsedData.oppPlayers.reduce((acc, s) => {
                 acc.pts  += s.pts  || 0; acc.fgm  += s.fgm  || 0; acc.fga  += s.fga  || 0;
@@ -325,13 +319,12 @@ Rules:
               );
             })()}
 
-            {/* Our players */}
             <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 8 }}>
-              Map each Hudl player to your current roster. Unmapped players won't be imported.
+              Map each Hudl player to your roster. Unmapped players won't be imported.
             </div>
 
             {matchedStats.map((m, i) => {
-              const s = m.stats;
+              const s = m.hudlStats;
               const fg2m = Math.max(0, (s.fgm || 0) - (s.fg3m || 0));
               const fg2a = Math.max(0, (s.fga || 0) - (s.fg3a || 0));
               return (
@@ -340,7 +333,6 @@ Rules:
                   border: `1px solid ${m.include && m.rosterPlayerId ? COLORS.gold : COLORS.border}`,
                   borderRadius: 10, padding: '10px 12px', marginBottom: 8,
                 }}>
-                  {/* Hudl player info */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
                       #{m.hudlNumber} {m.hudlName}
@@ -352,11 +344,8 @@ Rules:
                     </button>
                   </div>
 
-                  {/* Roster dropdown */}
                   {m.include && (
-                    <select
-                      value={m.rosterPlayerId || ''}
-                      onChange={e => setRosterMatch(i, e.target.value)}
+                    <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)}
                       style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}>
                       <option value="">— Select roster player —</option>
                       {players.map(p => (
@@ -365,7 +354,6 @@ Rules:
                     </select>
                   )}
 
-                  {/* Stats preview */}
                   {m.include && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10, color: COLORS.muted }}>
                       <span>PTS <b style={{ color: COLORS.text }}>{s.pts || 0}</b></span>
@@ -387,7 +375,6 @@ Rules:
               );
             })}
 
-            {/* Status + import button */}
             <div style={{ marginTop: 8, padding: '10px 12px', background: COLORS.navyMid, borderRadius: 8, border: `1px solid ${COLORS.border}`, marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: COLORS.text }}>
                 <span style={{ color: COLORS.green, fontWeight: 700 }}>{includedCount} players mapped</span>
@@ -409,15 +396,13 @@ Rules:
           </div>
         )}
 
-        {/* Importing */}
         {step === 'importing' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
-            <div style={{ fontSize: 48 }}>⏳</div>
+            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Importing stats…</div>
           </div>
         )}
 
-        {/* Done */}
         {step === 'done' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
             <div style={{ fontSize: 48 }}>✅</div>
@@ -430,7 +415,6 @@ Rules:
   );
 }
 
-// ── Schedule Screen ──────────────────────────────────────────────────────────
 function ScheduleScreen({ season, team, role, onBackToSeasons }) {
   const { colors: COLORS } = useTheme();
   const [entries, setEntries] = useState([]);
@@ -616,8 +600,8 @@ function ScheduleScreen({ season, team, role, onBackToSeasons }) {
                   Tag Game
                 </button>
                 <button onClick={() => setHudlEntry(e)}
-                  style={{ padding: '6px 12px', background: 'rgba(0,51,60,0.6)', border: '1px solid #00333c', color: '#4db8c8', borderRadius: 6, fontWeight: 'bold', fontSize: 11, cursor: 'pointer' }}>
-                  📄 Hudl Import
+                  style={{ padding: '6px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>
+                  H Import
                 </button>
               </div>
             ) : (
@@ -648,7 +632,6 @@ function ScheduleScreen({ season, team, role, onBackToSeasons }) {
   );
 }
 
-// ── Seasons Screen ───────────────────────────────────────────────────────────
 export default function SeasonsScreen({ team, role }) {
   const { colors: COLORS } = useTheme();
   const [seasons, setSeasons] = useState([]);
