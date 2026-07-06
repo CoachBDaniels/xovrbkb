@@ -99,7 +99,6 @@ Rules:
 - fgm/fga = TOTAL field goals including 3s
 - Missing or blank stats = 0`;
 
-      // Call our Netlify function instead of Anthropic directly
       const response = await fetch('/api/parse-hudl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +116,13 @@ Rules:
       });
 
       const data = await response.json();
-      const text = data.content?.map(i => i.text || '').join('').trim();
+      console.log('API response:', JSON.stringify(data));
+
+      if (!data.content || !data.content.length) {
+        throw new Error('No content in response: ' + JSON.stringify(data));
+      }
+
+      const text = data.content.map(i => i.text || '').join('').trim();
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
       setParsedData(parsed);
@@ -240,7 +245,6 @@ Rules:
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-
         {step === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
             <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
@@ -274,7 +278,6 @@ Rules:
             <div style={{ fontSize: 13, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
               Review & Map Players
             </div>
-
             <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 12, marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: 10, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Our Score</div>
@@ -343,7 +346,6 @@ Rules:
                       {m.include ? 'Skip' : 'Include'}
                     </button>
                   </div>
-
                   {m.include && (
                     <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)}
                       style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}>
@@ -353,7 +355,6 @@ Rules:
                       ))}
                     </select>
                   )}
-
                   {m.include && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10, color: COLORS.muted }}>
                       <span>PTS <b style={{ color: COLORS.text }}>{s.pts || 0}</b></span>
