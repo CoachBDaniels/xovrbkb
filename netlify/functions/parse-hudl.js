@@ -5,7 +5,7 @@ export default async (request, context) => {
 
   try {
     const body = await request.json();
-    
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -16,16 +16,22 @@ export default async (request, context) => {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-    
-    return new Response(JSON.stringify(data), {
+    const text = await response.text();
+
+    return new Response(text, {
       status: response.status,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 };
