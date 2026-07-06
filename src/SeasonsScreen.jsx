@@ -97,6 +97,7 @@ Rules:
 - Only include players with minutes > 0 or any non-zero stats
 - jersey number = digits only, no # symbol
 - fgm/fga = TOTAL field goals including 3s
+- mins = minutes played as a decimal number (e.g. 24.5 for 24 minutes 30 seconds)
 - Missing or blank stats = 0`;
 
       const response = await fetch('/api/parse-hudl', {
@@ -116,7 +117,6 @@ Rules:
       });
 
       const data = await response.json();
-      console.log('API response:', JSON.stringify(data));
 
       if (!data.content || !data.content.length) {
         throw new Error('No content in response: ' + JSON.stringify(data));
@@ -178,6 +178,14 @@ Rules:
         };
       });
 
+      // Build minutesLog from Hudl mins data (convert minutes to seconds)
+      const minutesLog = {};
+      matchedStats.forEach(m => {
+        if (!m.include || !m.rosterPlayerId) return;
+        const mins = m.hudlStats.mins || 0;
+        minutesLog[m.rosterPlayerId] = Math.round(mins * 60);
+      });
+
       const oppPlayers = parsedData?.oppPlayers || [];
       const oppTotals = oppPlayers.reduce((acc, s) => {
         acc.fgm  += s.fgm  || 0; acc.fga  += s.fga  || 0;
@@ -214,6 +222,7 @@ Rules:
           ourScore: scores.ours,
           theirScore: scores.theirs,
           importedFromHudl: true,
+          minutesLog,
         },
         player_stats: playerStats,
         game_format: GAME_FORMAT_PRESETS[0],
@@ -339,7 +348,9 @@ Rules:
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
                       #{m.hudlNumber} {m.hudlName}
-                      <span style={{ fontSize: 10, color: COLORS.muted, fontWeight: 400, marginLeft: 6 }}>from Hudl</span>
+                      <span style={{ fontSize: 10, color: COLORS.muted, fontWeight: 400, marginLeft: 6 }}>
+                        {s.mins ? `${s.mins} min` : ''}
+                      </span>
                     </div>
                     <button onClick={() => toggleInclude(i)}
                       style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, cursor: 'pointer', background: m.include ? COLORS.redBg : 'rgba(255,255,255,0.07)', border: `1px solid ${m.include ? COLORS.red : COLORS.border}`, color: m.include ? COLORS.red : COLORS.muted }}>
@@ -370,6 +381,7 @@ Rules:
                       <span>DEFL <b style={{ color: COLORS.text }}>{s.defl || 0}</b></span>
                       <span>PF <b style={{ color: COLORS.text }}>{s.pf || 0}</b></span>
                       <span>CHG <b style={{ color: COLORS.text }}>{s.chg || 0}</b></span>
+                      <span>MIN <b style={{ color: COLORS.text }}>{s.mins || 0}</b></span>
                     </div>
                   )}
                 </div>
