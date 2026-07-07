@@ -1529,3 +1529,18 @@ function App() {
         {coachTeams.map(t => (
           <button key={t.id} onClick={() => setSelectedTeam(t)}
             style={{ padding: 14, fontSize: 15, fontWeight: 700, background: BW.navyMid, color: BW
+.text, border: `1px solid ${BW.gold}`, borderRadius: 10, cursor: 'pointer', letterSpacing: 0.5, textAlign: 'left' }}>
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <button onClick={handleSignOut}
+        style={{ marginTop: 30, background: 'none', border: 'none', color: BW.muted, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>
+        Sign Out
+      </button>
+      <div style={{ position: 'absolute', bottom: 20, fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: 1 }}>XOVR BASKETBALL © 2026</div>
+    </div>
+  );
+}
+
+export default App;
