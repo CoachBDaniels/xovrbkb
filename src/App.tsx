@@ -20,8 +20,7 @@ function calcEff(s) {
   return pos - neg;
 }
 
-// ── Player Personal Dashboard ─────────────────────────────────────────────────
-function PlayerDashboard({ playerRecord, team }) {
+function PlayerDashboard({ playerRecord, team, onSwitchTeam }) {
   const { colors: COLORS, logo, teamName } = useTheme();
   const [tab, setTab] = useState('mystats');
   const [games, setGames] = useState([]);
@@ -96,7 +95,14 @@ function PlayerDashboard({ playerRecord, team }) {
             <div style={{ fontSize: 18, fontWeight: 900, color: COLORS.text }}>#{playerRecord.number || '—'} {playerRecord.name}</div>
             <div style={{ fontSize: 11, color: COLORS.muted }}>{playerRecord.position || ''} {playerRecord.grade || ''}</div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} style={{ marginLeft: 'auto', padding: '6px 12px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 7, cursor: 'pointer', fontSize: 11 }}>Sign Out</button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {onSwitchTeam && (
+              <button onClick={onSwitchTeam} style={{ padding: '6px 12px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 7, cursor: 'pointer', fontSize: 11 }}>
+                Switch Team
+              </button>
+            )}
+            <button onClick={() => supabase.auth.signOut()} style={{ padding: '6px 12px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 7, cursor: 'pointer', fontSize: 11 }}>Sign Out</button>
+          </div>
         </div>
       </div>
       <div style={{ padding: '16px 20px', maxWidth: 600, margin: '0 auto' }}>
@@ -302,11 +308,10 @@ function ScoutViewReadOnly({ team, COLORS }) {
   );
 }
 
-function PlayerView({ playerRecord, team }) {
-  return <ThemeProvider teamId={team.id}><PlayerDashboard playerRecord={playerRecord} team={team} /></ThemeProvider>;
+function PlayerView({ playerRecord, team, onSwitchTeam }) {
+  return <ThemeProvider teamId={team.id}><PlayerDashboard playerRecord={playerRecord} team={team} onSwitchTeam={onSwitchTeam} /></ThemeProvider>;
 }
 
-// ── Pending Approvals ─────────────────────────────────────────────────────────
 function PendingApprovalsScreen({ team, onClose }) {
   const { colors: COLORS } = useTheme();
   const [invites, setInvites] = useState([]);
@@ -368,7 +373,6 @@ function PendingApprovalsScreen({ team, onClose }) {
   );
 }
 
-// ── Scout components ──────────────────────────────────────────────────────────
 function ScoutFilmTagger({ opponent, team, onClose, onSaved }) {
   const { colors: COLORS } = useTheme();
   const [players, setPlayers] = useState([]);
@@ -596,7 +600,7 @@ function ScoutReport({ opponent, team, onClose }) {
   }).filter(Boolean).sort((a, b) => b.epg - a.epg);
 
   const fmt1 = v => v.toFixed(1);
-  if (loading) return <div style={{ position: 'fixed', inset: 0, background: COLORS.navyDark, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ color: COLORS.muted }}>Loading…</div></div>;
+  if (loading) return <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div>Loading…</div></div>;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
@@ -1088,15 +1092,17 @@ function App() {
           .map(m => ({ id: m.teams.id, name: m.teams.name, role: m.role }))
           .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
         setTeams(uniqueTeams);
-        const playerRole = memberships.find(m => m.role === 'player');
-        if (playerRole) {
-          const teamId = playerRole.teams.id;
+
+        const playerRoles = memberships.filter(m => m.role === 'player');
+        if (playerRoles.length === 1) {
+          const teamId = playerRoles[0].teams.id;
           const { data: pRecord } = await supabase.from('players').select('*').eq('team_id', teamId).eq('user_id', session.user.id).maybeSingle();
           if (pRecord) {
             setPlayerRecord(pRecord);
-            setSelectedTeam({ id: teamId, name: playerRole.teams.name, role: 'player' });
+            setSelectedTeam({ id: teamId, name: playerRoles[0].teams.name, role: 'player' });
           }
         }
+        // If multiple player teams, leave selectedTeam null so team picker shows
       }
       const { data: appSettings } = await supabase.from('app_settings').select('product_logo').limit(1).maybeSingle();
       if (appSettings?.product_logo) setProductLogo(appSettings.product_logo);
@@ -1132,35 +1138,13 @@ function App() {
       const enteredCode = playerTeamCode.trim().toUpperCase();
       const { data: themes } = await supabase.from('theme_settings').select('organization_id, theme');
       const matchingTheme = themes?.find(t => String(t.theme?.teamCode || '').toUpperCase() === enteredCode);
-      if (!matchingTheme) {
-        setPlayerSignupMessage('Invalid team code. Please check with your coach.');
-        setPlayerSignupLoading(false);
-        return;
-      }
+      if (!matchingTheme) { setPlayerSignupMessage('Invalid team code. Please check with your coach.'); setPlayerSignupLoading(false); return; }
       const { data: teamData } = await supabase.from('teams').select('id, name').eq('organization_id', matchingTheme.organization_id).limit(1).maybeSingle();
-      if (!teamData) {
-        setPlayerSignupMessage('Team not found. Please check with your coach.');
-        setPlayerSignupLoading(false);
-        return;
-      }
+      if (!teamData) { setPlayerSignupMessage('Team not found. Please check with your coach.'); setPlayerSignupLoading(false); return; }
       const { data: authData, error: authError } = await supabase.auth.signUp({ email: playerEmail, password: playerPassword });
-      if (authError) {
-        setPlayerSignupMessage('Error: ' + authError.message);
-        setPlayerSignupLoading(false);
-        return;
-      }
-      const { error: inviteError } = await supabase.from('player_invites').insert({
-        email: playerEmail,
-        team_id: teamData.id,
-        team_code: enteredCode,
-        user_id: authData.user.id,
-        status: 'pending',
-      });
-      if (inviteError) {
-        setPlayerSignupMessage('Error submitting request: ' + inviteError.message);
-        setPlayerSignupLoading(false);
-        return;
-      }
+      if (authError) { setPlayerSignupMessage('Error: ' + authError.message); setPlayerSignupLoading(false); return; }
+      const { error: inviteError } = await supabase.from('player_invites').insert({ email: playerEmail, team_id: teamData.id, team_code: enteredCode, user_id: authData.user.id, status: 'pending' });
+      if (inviteError) { setPlayerSignupMessage('Error submitting request: ' + inviteError.message); setPlayerSignupLoading(false); return; }
       setPlayerSignupMessage(`✅ Request sent to join ${teamData.name}! Your coach will approve your account shortly.`);
       setPlayerEmail(''); setPlayerPassword(''); setPlayerTeamCode('');
     } catch (err) {
@@ -1245,10 +1229,39 @@ function App() {
     );
   }
 
-  if (selectedTeam && playerRecord) return <PlayerView playerRecord={playerRecord} team={selectedTeam} />;
+  if (selectedTeam && playerRecord) {
+    return <PlayerView playerRecord={playerRecord} team={selectedTeam} onSwitchTeam={() => { setSelectedTeam(null); setPlayerRecord(null); }} />;
+  }
+
   if (selectedTeam) return <TeamView team={selectedTeam} onBack={() => setSelectedTeam(null)} />;
 
   const coachTeams = teams.filter(t => t.role !== 'player');
+  const playerTeams = teams.filter(t => t.role === 'player');
+
+  // Player with multiple teams — show team picker
+  if (playerTeams.length > 0 && coachTeams.length === 0) {
+    return (
+      <div style={{ minHeight: '100vh', background: BW.navyDark, color: BW.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
+        <img src={LOGO_URL} alt="XOVR Basketball" style={{ width: 180, height: 180, objectFit: 'contain', marginBottom: 16 }} />
+        <div style={{ fontSize: 11, color: BW.muted, letterSpacing: 1, marginBottom: 4 }}>{session.user.email}</div>
+        <div style={{ fontSize: 13, color: BW.gold, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>Choose a Team</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
+          {playerTeams.map(t => (
+            <button key={t.id} onClick={async () => {
+              const { data: pRecord } = await supabase.from('players').select('*').eq('team_id', t.id).eq('user_id', session.user.id).maybeSingle();
+              if (pRecord) { setPlayerRecord(pRecord); setSelectedTeam(t); }
+              else alert('No player record found for this team yet.');
+            }}
+              style={{ padding: 14, fontSize: 15, fontWeight: 700, background: BW.navyMid, color: BW.text, border: `1px solid ${BW.gold}`, borderRadius: 10, cursor: 'pointer', letterSpacing: 0.5, textAlign: 'left' }}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+        <button onClick={handleSignOut} style={{ marginTop: 30, background: 'none', border: 'none', color: BW.muted, cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Sign Out</button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: BW.navyDark, color: BW.text, fontFamily: 'sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative' }}>
       {productLogo && <img src={productLogo} alt="" style={{ height: 80, width: 'auto', objectFit: 'contain', marginBottom: 8 }} />}
