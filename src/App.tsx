@@ -1288,6 +1288,75 @@ function App() {
   const handleSignOut = async () => { setSelectedTeam(null); setPlayerRecord(null); await supabase.auth.signOut(); };
 
   const handlePlayerSignup = async (e) => {
+  e.preventDefault();
+  setPlayerSignupLoading(true);
+  setPlayerSignupMessage('');
+  try {
+    const enteredCode = playerTeamCode.trim().toUpperCase();
+
+    const { data: themes } = await supabase.from('theme_settings').select('organization_id, theme');
+    console.log('Themes found:', themes?.length, 'Looking for code:', enteredCode);
+
+    const matchingTheme = themes?.find(t => {
+      const code = t.theme?.teamCode;
+      console.log('Checking code:', code, typeof code);
+      return String(code || '').toUpperCase() === enteredCode;
+    });
+
+    if (!matchingTheme) {
+      setPlayerSignupMessage('Invalid team code. Please check with your coach.');
+      setPlayerSignupLoading(false);
+      return;
+    }
+
+    const { data: teamData, error: teamError } = await supabase
+      .from('teams')
+      .select('id, name')
+      .eq('organization_id', matchingTheme.organization_id)
+      .limit(1)
+      .maybeSingle();
+
+    console.log('Team found:', teamData, 'Error:', teamError);
+
+    if (!teamData) {
+      setPlayerSignupMessage('Team not found. Please check with your coach.');
+      setPlayerSignupLoading(false);
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: playerEmail,
+      password: playerPassword,
+    });
+    if (authError) {
+      setPlayerSignupMessage('Error: ' + authError.message);
+      setPlayerSignupLoading(false);
+      return;
+    }
+
+    const { error: inviteError } = await supabase.from('player_invites').insert({
+      email: playerEmail,
+      team_id: teamData.id,
+      team_code: enteredCode,
+      user_id: authData.user.id,
+      status: 'pending',
+    });
+
+    if (inviteError) {
+      setPlayerSignupMessage('Error submitting request: ' + inviteError.message);
+      setPlayerSignupLoading(false);
+      return;
+    }
+
+    setPlayerSignupMessage(`✅ Request sent to join ${teamData.name}! Your coach will approve your account shortly.`);
+    setPlayerEmail(''); setPlayerPassword(''); setPlayerTeamCode('');
+  } catch (err) {
+    setPlayerSignupMessage('Error: ' + err.message);
+  } finally {
+    setPlayerSignupLoading(false);
+  }
+};
+
     e.preventDefault();
     setPlayerSignupLoading(true);
     setPlayerSignupMessage('');
