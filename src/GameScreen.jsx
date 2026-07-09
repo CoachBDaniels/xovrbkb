@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 import { useTheme } from './ThemeContext';
 import { STAT_DEFS, GAME_FORMAT_PRESETS, emptyPlayerStats, calcPts, calcEff, CourtSVG, ShotChartView, BoxScoreReport, FormatPicker, applyStatDefs } from './GameReports';
-
 
 function isInsideArc(x, y) {
   const svgX = x * 3;
@@ -12,41 +11,18 @@ function isInsideArc(x, y) {
   return dist < 145;
 }
 
-
 function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfirmShot, onCancelShot, COLORS }) {
   const svgRef = useRef(null);
-
   const getCoords = (e) => {
     const svg = svgRef.current;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
     const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
     const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
-    return {
-      x: ((clientX - rect.left) / rect.width) * 100,
-      y: ((clientY - rect.top) / rect.height) * 100,
-      px: clientX - rect.left,
-      py: clientY - rect.top,
-      rectW: rect.width,
-      rectH: rect.height,
-    };
+    return { x: ((clientX - rect.left) / rect.width) * 100, y: ((clientY - rect.top) / rect.height) * 100, px: clientX - rect.left, py: clientY - rect.top, rectW: rect.width, rectH: rect.height };
   };
-
-  const handleClick = (e) => {
-    if (pendingShot) return;
-    const c = getCoords(e);
-    if (!c) return;
-    onTap(c.x, c.y, c.px, c.py, c.rectW, c.rectH);
-  };
-
-  const handleTouch = (e) => {
-    e.preventDefault();
-    if (pendingShot) return;
-    const c = getCoords(e);
-    if (!c) return;
-    onTap(c.x, c.y, c.px, c.py, c.rectW, c.rectH);
-  };
-
+  const handleClick = (e) => { if (pendingShot) return; const c = getCoords(e); if (!c) return; onTap(c.x, c.y, c.px, c.py, c.rectW, c.rectH); };
+  const handleTouch = (e) => { e.preventDefault(); if (pendingShot) return; const c = getCoords(e); if (!c) return; onTap(c.x, c.y, c.px, c.py, c.rectW, c.rectH); };
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       <svg ref={svgRef} viewBox="0 0 300 260" onClick={handleClick} onTouchStart={handleTouch}
@@ -66,72 +42,38 @@ function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfir
         <line x1="5" y1="252" x2="295" y2="252" stroke="#fff" strokeWidth="1.5" />
         <path d="M115 252 A35 35 0 0 1 185 252" fill="none" stroke="#fff" strokeWidth="1.5" strokeDasharray="4 3" />
       </svg>
-
       {pendingShot && (
-        <div style={{
-          position: 'absolute',
-          left: Math.min(Math.max(pendingShot.px - 70, 0), pendingShot.rectW - 150),
-          top: Math.min(Math.max(pendingShot.py - 60, 0), pendingShot.rectH - 80),
-          width: 150,
-          background: 'rgba(10,20,40,0.97)',
-          border: `2px solid ${COLORS.gold}`,
-          borderRadius: 12, padding: '8px 6px', zIndex: 50,
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <div style={{ fontSize: 10, color: COLORS.muted, textAlign: 'center', fontWeight: 700, marginBottom: 2 }}>
-            {pendingShot.is2pt ? '2PT' : '3PT'} — Make or Miss?
-          </div>
+        <div style={{ position: 'absolute', left: Math.min(Math.max(pendingShot.px - 70, 0), pendingShot.rectW - 150), top: Math.min(Math.max(pendingShot.py - 60, 0), pendingShot.rectH - 80), width: 150, background: 'rgba(10,20,40,0.97)', border: `2px solid ${COLORS.gold}`, borderRadius: 12, padding: '8px 6px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 10, color: COLORS.muted, textAlign: 'center', fontWeight: 700, marginBottom: 2 }}>{pendingShot.is2pt ? '2PT' : '3PT'} — Make or Miss?</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-            <button onClick={() => onConfirmShot(true)}
-              style={{ padding: '10px 4px', background: '#14532d', border: '1px solid #22c55e', borderRadius: 8, color: '#4ade80', fontWeight: 900, fontSize: 18, cursor: 'pointer' }}>
-              {pendingShot.is2pt ? '2✅' : '3✅'}
-            </button>
-            <button onClick={() => onConfirmShot(false)}
-              style={{ padding: '10px 4px', background: '#450a0a', border: '1px solid #ef4444', borderRadius: 8, color: '#f87171', fontWeight: 900, fontSize: 18, cursor: 'pointer' }}>
-              {pendingShot.is2pt ? '2❌' : '3❌'}
-            </button>
+            <button onClick={() => onConfirmShot(true)} style={{ padding: '10px 4px', background: '#14532d', border: '1px solid #22c55e', borderRadius: 8, color: '#4ade80', fontWeight: 900, fontSize: 18, cursor: 'pointer' }}>{pendingShot.is2pt ? '2✅' : '3✅'}</button>
+            <button onClick={() => onConfirmShot(false)} style={{ padding: '10px 4px', background: '#450a0a', border: '1px solid #ef4444', borderRadius: 8, color: '#f87171', fontWeight: 900, fontSize: 18, cursor: 'pointer' }}>{pendingShot.is2pt ? '2❌' : '3❌'}</button>
           </div>
-          <button onClick={onCancelShot}
-            style={{ padding: '5px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer' }}>
-            Cancel
-          </button>
+          <button onClick={onCancelShot} style={{ padding: '5px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
         </div>
       )}
     </div>
   );
 }
 
-
 function StarterPicker({ players, onConfirm }) {
   const { colors: COLORS } = useTheme();
   const [picked, setPicked] = useState([]);
-  const toggle = (id) => {
-    setPicked(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length < 5 ? [...prev, id] : prev));
-  };
+  const toggle = (id) => setPicked(prev => prev.includes(id) ? prev.filter(x => x !== id) : (prev.length < 5 ? [...prev, id] : prev));
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {players.map(p => {
           const sel = picked.includes(p.id);
-          return (
-            <button key={p.id} onClick={() => toggle(p.id)}
-              style={{ padding: '10px 14px', borderRadius: 8, border: sel ? '2px solid #c8a84b' : '1px solid #ccc', background: sel ? COLORS.goldLight : COLORS.navyMid, color: sel ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: sel ? 700 : 500 }}>
-              #{p.number || '—'} {p.name}
-            </button>
-          );
+          return <button key={p.id} onClick={() => toggle(p.id)} style={{ padding: '10px 14px', borderRadius: 8, border: sel ? '2px solid #c8a84b' : '1px solid #ccc', background: sel ? COLORS.goldLight : COLORS.navyMid, color: sel ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: sel ? 700 : 500 }}>#{p.number || '—'} {p.name}</button>;
         })}
       </div>
       <div style={{ marginBottom: 12, fontSize: 13, color: COLORS.muted }}>{picked.length} of 5 selected</div>
-      <button onClick={() => onConfirm(picked)} disabled={picked.length !== 5}
-        style={{ padding: '12px 24px', fontWeight: 'bold', background: picked.length === 5 ? COLORS.gold : COLORS.navyMid, color: picked.length === 5 ? COLORS.textDark : COLORS.muted, border: 'none', borderRadius: 8, cursor: picked.length === 5 ? 'pointer' : 'default' }}>
-        Start Game →
-      </button>
+      <button onClick={() => onConfirm(picked)} disabled={picked.length !== 5} style={{ padding: '12px 24px', fontWeight: 'bold', background: picked.length === 5 ? COLORS.gold : COLORS.navyMid, color: picked.length === 5 ? COLORS.textDark : COLORS.muted, border: 'none', borderRadius: 8, cursor: picked.length === 5 ? 'pointer' : 'default' }}>Start Game →</button>
     </div>
   );
 }
 
-
-// ── Hudl Compare Modal ───────────────────────────────────────────────────────
 function HudlCompareModal({ game, team, onClose, onSaved }) {
   const { colors: COLORS } = useTheme();
   const [step, setStep] = useState('upload');
@@ -151,185 +93,69 @@ function HudlCompareModal({ game, team, onClose, onSaved }) {
   const handlePdfUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setStep('parsing');
-    setError(null);
-
+    setStep('parsing'); setError(null);
     try {
-      const base64Data = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result.split(',')[1]);
-        r.onerror = () => rej(new Error('Read failed'));
-        r.readAsDataURL(file);
-      });
-
+      const base64Data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = () => rej(new Error('Read failed')); r.readAsDataURL(file); });
       const prompt = `You are parsing a Hudl basketball box score PDF. Extract player stats for OUR team only (the first team listed).
-
 Return ONLY valid JSON, no markdown:
-{
-  "players": [
-    {
-      "number": "<jersey number digits only>",
-      "name": "<player name>",
-      "pts": <number>,
-      "fgm": <number>,
-      "fga": <number>,
-      "fg3m": <number>,
-      "fg3a": <number>,
-      "ftm": <number>,
-      "fta": <number>,
-      "oreb": <number>,
-      "dreb": <number>,
-      "ast": <number>,
-      "defl": <number>,
-      "stl": <number>,
-      "blk": <number>,
-      "to": <number>,
-      "pf": <number>,
-      "chg": <number>
-    }
-  ]
-}
-
-Rules:
-- Only include players with any non-zero stats
-- jersey number = digits only, no # symbol
-- fgm/fga = TOTAL field goals including 3s
-- Missing stats = 0`;
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
-              { type: 'text', text: prompt },
-            ],
-          }],
-        }),
-      });
-
+{"players":[{"number":"<digits>","name":"<name>","pts":<n>,"fgm":<n>,"fga":<n>,"fg3m":<n>,"fg3a":<n>,"ftm":<n>,"fta":<n>,"oreb":<n>,"dreb":<n>,"ast":<n>,"defl":<n>,"stl":<n>,"blk":<n>,"to":<n>,"pf":<n>,"chg":<n>}]}
+Rules: only non-zero stats players, jersey number digits only, fgm/fga = TOTAL including 3s, missing = 0`;
+      const response = await fetch('/api/parse-hudl', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }, { type: 'text', text: prompt }] }] }) });
       const data = await response.json();
-      const text = data.content?.map(i => i.text || '').join('').trim();
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(clean);
+      if (!data.content?.length) throw new Error('No content: ' + JSON.stringify(data));
+      const parsed = JSON.parse(data.content.map(i => i.text || '').join('').trim().replace(/```json|```/g, '').trim());
       setParsedData(parsed);
-
       const matched = (parsed.players || []).map(hp => {
-        const rosterPlayer = players.find(p =>
-          String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim()
-        );
-        return {
-          hudlName: hp.name,
-          hudlNumber: hp.number,
-          rosterPlayerId: rosterPlayer?.id || null,
-          hudlStats: hp,
-        };
+        const rp = players.find(p => String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim());
+        return { hudlName: hp.name, hudlNumber: hp.number, rosterPlayerId: rp?.id || null, hudlStats: hp };
       });
       setMatchedStats(matched);
       setStep('compare');
-    } catch (err) {
-      setError('Failed to parse PDF: ' + err.message);
-      setStep('upload');
-    }
+    } catch (err) { setError('Failed to parse PDF: ' + err.message); setStep('upload'); }
   };
 
-  const setRosterMatch = (idx, playerId) => {
-    setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
-  };
+  const setRosterMatch = (idx, playerId) => setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
 
   const hudlToXovr = (s) => ({
-    '2PM': Math.max(0, (s.fgm || 0) - (s.fg3m || 0)),
-    '2PA': Math.max(0, (s.fga || 0) - (s.fg3a || 0)),
-    '3PM': s.fg3m || 0, '3PA': s.fg3a || 0,
-    'FTM': s.ftm || 0, 'FTA': s.fta || 0,
-    'O': s.oreb || 0, 'D': s.dreb || 0,
-    'AST': s.ast || 0, 'DF': s.defl || 0,
-    'STL': s.stl || 0, 'BS': s.blk || 0,
-    'TO': s.to || 0, 'PF': s.pf || 0,
-    'CHG_taken': s.chg || 0,
+    '2PM': Math.max(0, (s.fgm || 0) - (s.fg3m || 0)), '2PA': Math.max(0, (s.fga || 0) - (s.fg3a || 0)),
+    '3PM': s.fg3m || 0, '3PA': s.fg3a || 0, 'FTM': s.ftm || 0, 'FTA': s.fta || 0,
+    'O': s.oreb || 0, 'D': s.dreb || 0, 'AST': s.ast || 0, 'DF': s.defl || 0,
+    'STL': s.stl || 0, 'BS': s.blk || 0, 'TO': s.to || 0, 'PF': s.pf || 0, 'CHG_taken': s.chg || 0,
   });
 
   const COMPARE_STATS = [
-    { key: '2PM', label: '2PM' }, { key: '2PA', label: '2PA' },
-    { key: '3PM', label: '3PM' }, { key: '3PA', label: '3PA' },
-    { key: 'FTM', label: 'FTM' }, { key: 'FTA', label: 'FTA' },
-    { key: 'O', label: 'OREB' }, { key: 'D', label: 'DREB' },
-    { key: 'AST', label: 'AST' }, { key: 'DF', label: 'DEFL' },
-    { key: 'STL', label: 'STL' }, { key: 'BS', label: 'BLK' },
-    { key: 'TO', label: 'TO' }, { key: 'PF', label: 'PF' },
-    { key: 'CHG_taken', label: 'CHG' },
+    { key: '2PM', label: '2PM' }, { key: '2PA', label: '2PA' }, { key: '3PM', label: '3PM' }, { key: '3PA', label: '3PA' },
+    { key: 'FTM', label: 'FTM' }, { key: 'FTA', label: 'FTA' }, { key: 'O', label: 'OREB' }, { key: 'D', label: 'DREB' },
+    { key: 'AST', label: 'AST' }, { key: 'DF', label: 'DEFL' }, { key: 'STL', label: 'STL' }, { key: 'BS', label: 'BLK' },
+    { key: 'TO', label: 'TO' }, { key: 'PF', label: 'PF' }, { key: 'CHG_taken', label: 'CHG' },
   ];
 
-  const buildComparison = () => {
+  const buildComparison = useCallback(() => {
     return matchedStats.filter(m => m.rosterPlayerId).map(m => {
       const xovrStats = game.player_stats?.[m.rosterPlayerId] || {};
       const hudlXovr = hudlToXovr(m.hudlStats);
       const diffs = COMPARE_STATS.filter(s => (xovrStats[s.key] || 0) !== (hudlXovr[s.key] || 0));
-      return {
-        rosterPlayerId: m.rosterPlayerId,
-        player: players.find(p => p.id === m.rosterPlayerId),
-        hudlName: m.hudlName, hudlNumber: m.hudlNumber,
-        xovrStats, hudlXovr, diffs,
-        accepted: { ...xovrStats },
-      };
+      return { rosterPlayerId: m.rosterPlayerId, player: players.find(p => p.id === m.rosterPlayerId), hudlName: m.hudlName, hudlNumber: m.hudlNumber, xovrStats, hudlXovr, diffs, accepted: { ...xovrStats } };
     });
-  };
+  }, [matchedStats, players, game.player_stats]);
 
-  useEffect(() => {
-    if (step === 'compare' && matchedStats.length > 0 && players.length > 0) {
-      setComparisons(buildComparison());
-    }
-  }, [step, matchedStats, players]);
+  useEffect(() => { if (step === 'compare' && matchedStats.length > 0 && players.length > 0) setComparisons(buildComparison()); }, [step, matchedStats, players]);
 
-  const acceptHudl = (playerIdx, statKey) => {
-    setComparisons(prev => prev.map((c, i) => i !== playerIdx ? c : { ...c, accepted: { ...c.accepted, [statKey]: c.hudlXovr[statKey] } }));
-  };
-
-  const acceptXovr = (playerIdx, statKey) => {
-    setComparisons(prev => prev.map((c, i) => i !== playerIdx ? c : { ...c, accepted: { ...c.accepted, [statKey]: c.xovrStats[statKey] || 0 } }));
-  };
-
-  const acceptAllHudlForPlayer = (playerIdx) => {
-    setComparisons(prev => prev.map((c, i) => {
-      if (i !== playerIdx) return c;
-      const newAccepted = { ...c.accepted };
-      c.diffs.forEach(s => { newAccepted[s.key] = c.hudlXovr[s.key]; });
-      return { ...c, accepted: newAccepted };
-    }));
-  };
-
-  const acceptAllXovrForPlayer = (playerIdx) => {
-    setComparisons(prev => prev.map((c, i) => {
-      if (i !== playerIdx) return c;
-      const newAccepted = { ...c.accepted };
-      c.diffs.forEach(s => { newAccepted[s.key] = c.xovrStats[s.key] || 0; });
-      return { ...c, accepted: newAccepted };
-    }));
-  };
+  const acceptHudl = (pi, k) => setComparisons(prev => prev.map((c, i) => i !== pi ? c : { ...c, accepted: { ...c.accepted, [k]: c.hudlXovr[k] } }));
+  const acceptXovr = (pi, k) => setComparisons(prev => prev.map((c, i) => i !== pi ? c : { ...c, accepted: { ...c.accepted, [k]: c.xovrStats[k] || 0 } }));
+  const acceptAllHudl = (pi) => setComparisons(prev => prev.map((c, i) => { if (i !== pi) return c; const a = { ...c.accepted }; c.diffs.forEach(s => { a[s.key] = c.hudlXovr[s.key]; }); return { ...c, accepted: a }; }));
+  const acceptAllXovr = (pi) => setComparisons(prev => prev.map((c, i) => { if (i !== pi) return c; const a = { ...c.accepted }; c.diffs.forEach(s => { a[s.key] = c.xovrStats[s.key] || 0; }); return { ...c, accepted: a }; }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const updatedStats = { ...game.player_stats };
-      comparisons.forEach(c => {
-        updatedStats[c.rosterPlayerId] = { ...(updatedStats[c.rosterPlayerId] || {}), ...c.accepted };
-      });
-      const { error } = await supabase.from('games').update({
-        player_stats: updatedStats,
-        updated_at: new Date().toISOString(),
-      }).eq('id', game.id);
+      comparisons.forEach(c => { updatedStats[c.rosterPlayerId] = { ...(updatedStats[c.rosterPlayerId] || {}), ...c.accepted }; });
+      const { error } = await supabase.from('games').update({ player_stats: updatedStats, updated_at: new Date().toISOString() }).eq('id', game.id);
       if (error) throw new Error(error.message);
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError('Save failed: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+      onSaved(); onClose();
+    } catch (err) { setError('Save failed: ' + err.message); }
+    finally { setSaving(false); }
   };
 
   const totalDiscrepancies = comparisons.reduce((n, c) => n + c.diffs.length, 0);
@@ -338,163 +164,84 @@ Rules:
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: COLORS.navyMid, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: COLORS.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: COLORS.gold }}>
-          <span style={{ color: '#ff6a00', fontWeight: 900, fontSize: 18 }}>H</span> Hudl Compare
-        </div>
-        {step === 'compare' && comparisons.length > 0 ? (
-          <button onClick={handleSave} disabled={saving}
-            style={{ padding: '6px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        ) : <div style={{ width: 60 }} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: COLORS.gold }}><span style={{ color: '#ff6a00', fontWeight: 900, fontSize: 18 }}>H</span> Hudl Compare</div>
+        {step === 'compare' && comparisons.length > 0 ? <button onClick={handleSave} disabled={saving} style={{ padding: '6px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Save'}</button> : <div style={{ width: 60 }} />}
       </div>
-
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {step === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 32 }}>
             <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
             <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Upload Hudl Box Score</div>
-            <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
-              Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight discrepancies.
-            </div>
+            <div style={{ color: COLORS.muted, fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>Upload the Hudl PDF for this game. XOVR will compare it to your tagged stats and highlight discrepancies.</div>
             {error && <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px' }}>{error}</div>}
-            <label style={{ padding: '14px 28px', background: COLORS.gold, borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
-              Choose PDF
-              <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
-            </label>
+            <label style={{ padding: '14px 28px', background: COLORS.gold, borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>Choose PDF<input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} /></label>
           </div>
         )}
-
-        {step === 'parsing' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}>
-            <div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div>
-            <div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Reading box score…</div>
-            <div style={{ color: COLORS.muted, fontSize: 13 }}>Claude is extracting stats from your Hudl PDF</div>
-          </div>
-        )}
-
+        {step === 'parsing' && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, paddingTop: 48 }}><div style={{ fontSize: 64, fontWeight: 900, color: '#ff6a00', lineHeight: 1 }}>H</div><div style={{ color: COLORS.text, fontWeight: 700, fontSize: 16 }}>Reading box score…</div></div>}
         {step === 'compare' && matchedStats.some(m => !m.rosterPlayerId) && (
           <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.gold}`, borderRadius: 10, padding: 12, marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>Map players to your roster:</div>
             {matchedStats.map((m, i) => (
               <div key={i} style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 4 }}>#{m.hudlNumber} {m.hudlName}</div>
-                <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)}
-                  style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, boxSizing: 'border-box' }}>
-                  <option value="">— Skip this player —</option>
+                <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)} style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, boxSizing: 'border-box' }}>
+                  <option value="">— Skip —</option>
                   {players.map(p => <option key={p.id} value={p.id}>#{p.number || '—'} {p.name}</option>)}
                 </select>
               </div>
             ))}
-            <button onClick={() => setComparisons(buildComparison())}
-              style={{ width: '100%', marginTop: 8, padding: 10, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
-              Run Comparison →
-            </button>
+            <button onClick={() => setComparisons(buildComparison())} style={{ width: '100%', marginTop: 8, padding: 10, background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Run Comparison →</button>
           </div>
         )}
-
         {step === 'compare' && comparisons.length > 0 && (
           <div>
             <div style={{ background: totalDiscrepancies > 0 ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)', border: `1px solid ${totalDiscrepancies > 0 ? COLORS.red : COLORS.green}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
-              {totalDiscrepancies > 0 ? (
-                <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>
-                  ⚠️ <span style={{ color: COLORS.red }}>{totalDiscrepancies} discrepanc{totalDiscrepancies === 1 ? 'y' : 'ies'}</span> found across {comparisons.filter(c => c.diffs.length > 0).length} player{comparisons.filter(c => c.diffs.length > 0).length !== 1 ? 's' : ''}.
-                  <span style={{ color: COLORS.muted, fontWeight: 400 }}> Tap each stat to choose XOVR or Hudl value.</span>
-                </div>
-              ) : (
-                <div style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>✅ All stats match between XOVR and Hudl!</div>
-              )}
+              {totalDiscrepancies > 0 ? <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 700 }}>⚠️ <span style={{ color: COLORS.red }}>{totalDiscrepancies} discrepanc{totalDiscrepancies === 1 ? 'y' : 'ies'}</span> found. Tap each stat to choose XOVR or Hudl.</div>
+                : <div style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>✅ All stats match!</div>}
             </div>
-
             {error && <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>{error}</div>}
-
-            {comparisons.map((c, playerIdx) => {
+            {comparisons.map((c, pi) => {
               const hasDiffs = c.diffs.length > 0;
-              const isExpanded = showFull[playerIdx];
+              const isExpanded = showFull[pi];
               return (
                 <div key={c.rosterPlayerId} style={{ background: COLORS.navyMid, border: `1px solid ${hasDiffs ? COLORS.red : COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>#{c.player?.number || '—'} {c.player?.name}</div>
-                      <div style={{ fontSize: 10, color: COLORS.muted }}>Hudl: #{c.hudlNumber} {c.hudlName}</div>
-                    </div>
-                    {hasDiffs ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => acceptAllHudlForPlayer(playerIdx)}
-                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00' }}>
-                          All <span style={{ fontWeight: 900 }}>H</span>
-                        </button>
-                        <button onClick={() => acceptAllXovrForPlayer(playerIdx)}
-                          style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: COLORS.goldLight, border: `1px solid ${COLORS.gold}`, color: COLORS.gold }}>
-                          All XOVR
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: COLORS.green, fontWeight: 700 }}>✅ Match</div>
-                    )}
+                    <div><div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>#{c.player?.number || '—'} {c.player?.name}</div><div style={{ fontSize: 10, color: COLORS.muted }}>Hudl: #{c.hudlNumber} {c.hudlName}</div></div>
+                    {hasDiffs ? <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => acceptAllHudl(pi)} style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00' }}>All <span style={{ fontWeight: 900 }}>H</span></button>
+                      <button onClick={() => acceptAllXovr(pi)} style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', background: COLORS.goldLight, border: `1px solid ${COLORS.gold}`, color: COLORS.gold }}>All XOVR</button>
+                    </div> : <div style={{ fontSize: 11, color: COLORS.green, fontWeight: 700 }}>✅ Match</div>}
                   </div>
-
                   {hasDiffs && (
                     <div style={{ marginBottom: 8 }}>
                       <div style={{ fontSize: 10, color: COLORS.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Discrepancies</div>
                       {c.diffs.map(s => {
-                        const xovrVal = c.xovrStats[s.key] || 0;
-                        const hudlVal = c.hudlXovr[s.key] || 0;
-                        const accepted = c.accepted[s.key] ?? xovrVal;
-                        const choseXovr = accepted === xovrVal;
-                        const choseHudl = accepted === hudlVal && accepted !== xovrVal;
+                        const xv = c.xovrStats[s.key] || 0, hv = c.hudlXovr[s.key] || 0, acc = c.accepted[s.key] ?? xv;
+                        const cx = acc === xv, ch = acc === hv && acc !== xv;
                         return (
                           <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
                             <div style={{ width: 40, fontSize: 11, fontWeight: 700, color: COLORS.muted }}>{s.label}</div>
-                            <button onClick={() => acceptXovr(playerIdx, s.key)}
-                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseXovr ? COLORS.gold : COLORS.border}`, background: choseXovr ? COLORS.goldLight : COLORS.navyDark, color: choseXovr ? COLORS.gold : COLORS.text }}>
-                              {xovrVal}
-                              <div style={{ fontSize: 9, fontWeight: 400, color: choseXovr ? COLORS.gold : COLORS.muted }}>XOVR</div>
-                            </button>
+                            <button onClick={() => acceptXovr(pi, s.key)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${cx ? COLORS.gold : COLORS.border}`, background: cx ? COLORS.goldLight : COLORS.navyDark, color: cx ? COLORS.gold : COLORS.text }}>{xv}<div style={{ fontSize: 9, fontWeight: 400, color: cx ? COLORS.gold : COLORS.muted }}>XOVR</div></button>
                             <div style={{ color: COLORS.muted, fontSize: 12 }}>vs</div>
-                            <button onClick={() => acceptHudl(playerIdx, s.key)}
-                              style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${choseHudl ? '#ff6a00' : COLORS.border}`, background: choseHudl ? 'rgba(255,106,0,0.12)' : COLORS.navyDark, color: choseHudl ? '#ff6a00' : COLORS.text }}>
-                              {hudlVal}
-                              <div style={{ fontSize: 9, fontWeight: 400, color: choseHudl ? '#ff6a00' : COLORS.muted }}>Hudl</div>
-                            </button>
+                            <button onClick={() => acceptHudl(pi, s.key)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', border: `2px solid ${ch ? '#ff6a00' : COLORS.border}`, background: ch ? 'rgba(255,106,0,0.12)' : COLORS.navyDark, color: ch ? '#ff6a00' : COLORS.text }}>{hv}<div style={{ fontSize: 9, fontWeight: 400, color: ch ? '#ff6a00' : COLORS.muted }}>Hudl</div></button>
                           </div>
                         );
                       })}
                     </div>
                   )}
-
-                  <button onClick={() => setShowFull(prev => ({ ...prev, [playerIdx]: !prev[playerIdx] }))}
-                    style={{ width: '100%', padding: '6px 0', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer', marginBottom: isExpanded ? 8 : 0 }}>
-                    {isExpanded ? '▲ Hide full stats' : '▼ Show all stats'}
-                  </button>
-
+                  <button onClick={() => setShowFull(prev => ({ ...prev, [pi]: !prev[pi] }))} style={{ width: '100%', padding: '6px 0', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 11, cursor: 'pointer', marginBottom: isExpanded ? 8 : 0 }}>{isExpanded ? '▲ Hide full stats' : '▼ Show all stats'}</button>
                   {isExpanded && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
                       {COMPARE_STATS.map(s => {
-                        const xovrVal = c.xovrStats[s.key] || 0;
-                        const hudlVal = c.hudlXovr[s.key] || 0;
-                        const isDiff = xovrVal !== hudlVal;
-                        const accepted = c.accepted[s.key] ?? xovrVal;
-                        return (
-                          <div key={s.key} style={{ background: isDiff ? 'rgba(220,38,38,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '5px 6px', border: `1px solid ${isDiff ? 'rgba(220,38,38,0.3)' : COLORS.border}` }}>
-                            <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, marginBottom: 2 }}>{s.label}</div>
-                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                              <span style={{ fontSize: 12, fontWeight: 900, color: isDiff ? COLORS.gold : COLORS.text }}>{accepted}</span>
-                              {isDiff && <span style={{ fontSize: 9, color: '#ff6a00' }}>H:{hudlVal}</span>}
-                            </div>
-                          </div>
-                        );
+                        const xv = c.xovrStats[s.key] || 0, hv = c.hudlXovr[s.key] || 0, isDiff = xv !== hv, acc = c.accepted[s.key] ?? xv;
+                        return <div key={s.key} style={{ background: isDiff ? 'rgba(220,38,38,0.08)' : 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '5px 6px', border: `1px solid ${isDiff ? 'rgba(220,38,38,0.3)' : COLORS.border}` }}><div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, marginBottom: 2 }}>{s.label}</div><div style={{ display: 'flex', gap: 4, alignItems: 'center' }}><span style={{ fontSize: 12, fontWeight: 900, color: isDiff ? COLORS.gold : COLORS.text }}>{acc}</span>{isDiff && <span style={{ fontSize: 9, color: '#ff6a00' }}>H:{hv}</span>}</div></div>;
                       })}
                     </div>
                   )}
                 </div>
               );
             })}
-
-            <button onClick={handleSave} disabled={saving}
-              style={{ width: '100%', padding: 14, background: COLORS.gold, border: 'none', borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>
-              {saving ? 'Saving…' : 'Save Changes →'}
-            </button>
+            <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: 14, background: COLORS.gold, border: 'none', borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer', marginTop: 8 }}>{saving ? 'Saving…' : 'Save Changes →'}</button>
           </div>
         )}
       </div>
@@ -502,16 +249,35 @@ Rules:
   );
 }
 
+// ── Build stats from events ───────────────────────────────────────────────────
+function buildStatsFromEvents(events) {
+  const stats = {};
+  events.forEach(ev => {
+    if (!stats[ev.player_id]) stats[ev.player_id] = emptyPlayerStats();
+    stats[ev.player_id][ev.stat_key] = (stats[ev.player_id][ev.stat_key] || 0) + (ev.value || 1);
+  });
+  return stats;
+}
+
+function buildShotLogFromEvents(events) {
+  return events
+    .filter(ev => ev.meta?.isShot)
+    .map(ev => ({ playerId: ev.player_id, statKey: ev.stat_key, x: ev.meta.x, y: ev.meta.y, make: ev.meta.make, period: ev.period }));
+}
+
+function buildActionHistoryFromEvents(events) {
+  return events.map(ev => ({ playerId: ev.player_id, key: ev.stat_key, loggedShot: !!ev.meta?.isShot, eventId: ev.id }));
+}
 
 export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
-  const { colors: COLORS, logo, teamName, abbr: teamAbbr, court, lane } = useTheme();
+  const { colors: COLORS, logo, teamName, court, lane } = useTheme();
   const [players, setPlayers] = useState([]);
   const [opponent, setOpponent] = useState(null);
-  const [stats, setStats] = useState(game.player_stats && Object.keys(game.player_stats).length ? game.player_stats : {});
+  const [events, setEvents] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [gameFormat, setGameFormat] = useState(game.game_format || GAME_FORMAT_PRESETS[0]);
   const [currentPeriod, setCurrentPeriod] = useState(game.meta?.currentPeriod || 1);
-  const [clockMinutes, setClockMinutes] = useState(game.meta?.clockMinutes != null ? game.meta.clockMinutes : gameFormat.minutes);
+  const [clockMinutes, setClockMinutes] = useState(game.meta?.clockMinutes != null ? game.meta.clockMinutes : (game.game_format?.minutes || GAME_FORMAT_PRESETS[0].minutes));
   const [clockSeconds, setClockSeconds] = useState(game.meta?.clockSeconds != null ? game.meta.clockSeconds : 0);
   const [editingClock, setEditingClock] = useState(false);
   const [editingFormat, setEditingFormat] = useState(false);
@@ -527,22 +293,25 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [showSubClockConfirm, setShowSubClockConfirm] = useState(false);
   const [confirmMin, setConfirmMin] = useState(clockMinutes);
   const [confirmSec, setConfirmSec] = useState(clockSeconds);
-  const [shotLog, setShotLog] = useState(game.shot_log || []);
   const [pendingShot, setPendingShot] = useState(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLiveBoxScore, setShowLiveBoxScore] = useState(false);
   const [showShotChart, setShowShotChart] = useState(false);
   const [specialPicker, setSpecialPicker] = useState(null);
-  const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory || []);
   const [statDefsReady, setStatDefsReady] = useState(false);
+
+  // Derived from events
+  const stats = buildStatsFromEvents(events);
+  const shotLog = buildShotLogFromEvents(events);
+  const actionHistory = buildActionHistoryFromEvents(events);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data } = await supabase.from('team_stat_defs').select('stat_defs').eq('team_id', team.id).maybeSingle();
       if (cancelled) return;
-      if (data?.stat_defs && data.stat_defs.length > 0) applyStatDefs(data.stat_defs);
+      if (data?.stat_defs?.length > 0) applyStatDefs(data.stat_defs);
       else applyStatDefs(null);
       setStatDefsReady(true);
     })();
@@ -560,19 +329,57 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
       .then(({ data, error }) => { if (!error) setOpponent(data); });
   }, [game.opponent_id]);
 
+  // Load existing events
+  useEffect(() => {
+    supabase.from('game_events').select('*').eq('game_id', game.id).order('created_at')
+      .then(({ data, error }) => { if (!error && data) setEvents(data); });
+  }, [game.id]);
+
+  // Real-time subscription — fires whenever any coach tags a stat
+  useEffect(() => {
+    const channel = supabase.channel(`game-events-${game.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'game_events',
+        filter: `game_id=eq.${game.id}`,
+      }, (payload) => {
+        setEvents(prev => {
+          // Avoid duplicates if this device inserted the event
+          if (prev.find(e => e.id === payload.new.id)) return prev;
+          return [...prev, payload.new];
+        });
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'game_events',
+        filter: `game_id=eq.${game.id}`,
+      }, (payload) => {
+        setEvents(prev => prev.filter(e => e.id !== payload.old.id));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [game.id]);
+
   const statsFor = (id) => stats[id] || emptyPlayerStats();
 
-  const commitStatOnly = (playerId, key, loggedShot) => {
-    setStats(prev => {
-      const cur = prev[playerId] || emptyPlayerStats();
-      return { ...prev, [playerId]: { ...cur, [key]: (cur[key] || 0) + 1 } };
-    });
-    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot }]);
-  };
-
-  const tagStat = (playerId, key) => {
+  // Tag a stat — writes ONE event row immediately
+  const tagStat = async (playerId, key, shotMeta) => {
     if (!playerId) return;
-    commitStatOnly(playerId, key, false);
+    const { data, error } = await supabase.from('game_events').insert({
+      game_id: game.id,
+      player_id: playerId,
+      stat_key: key,
+      value: 1,
+      period: currentPeriod,
+      clock_seconds: clockMinutes * 60 + clockSeconds,
+      meta: shotMeta || null,
+    }).select().single();
+    if (!error && data) {
+      // Optimistically add to local state immediately so UI feels instant
+      setEvents(prev => prev.find(e => e.id === data.id) ? prev : [...prev, data]);
+    }
     setSelectedPlayer(null);
   };
 
@@ -582,38 +389,30 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setPendingShot({ x, y, px, py, rectW, rectH, is2pt: inside });
   };
 
-  const confirmShot = (make) => {
+  const confirmShot = async (make) => {
     if (!pendingShot || !selectedPlayer) return;
     const { x, y, is2pt } = pendingShot;
     const key = is2pt ? (make ? '2PM' : '2PA') : (make ? '3PM' : '3PA');
-    commitStatOnly(selectedPlayer, key, true);
-    setShotLog(prev => [...prev, { playerId: selectedPlayer, statKey: key, x, y, make, period: currentPeriod }]);
+    await tagStat(selectedPlayer, key, { isShot: true, x, y, make, period: currentPeriod });
     setPendingShot(null);
-    setSelectedPlayer(null);
   };
 
-  const undoLastAction = () => {
-    setActionHistory(prevHistory => {
-      if (prevHistory.length === 0) return prevHistory;
-      const last = prevHistory[prevHistory.length - 1];
-      setStats(prevStats => {
-        const cur = prevStats[last.playerId] || emptyPlayerStats();
-        return { ...prevStats, [last.playerId]: { ...cur, [last.key]: Math.max(0, (cur[last.key] || 0) - 1) } };
-      });
-      if (last.loggedShot) {
-        setShotLog(prevShots => {
-          const idx = prevShots.map((s, i) => i).reverse().find(i => prevShots[i].playerId === last.playerId && prevShots[i].statKey === last.key);
-          return idx == null ? prevShots : prevShots.filter((_, i) => i !== idx);
-        });
-      }
-      return prevHistory.slice(0, -1);
-    });
+  // Undo — deletes the last event row
+  const undoLastAction = async () => {
+    if (events.length === 0) return;
+    const last = events[events.length - 1];
+    await supabase.from('game_events').delete().eq('id', last.id);
+    // Real-time DELETE subscription will update state on all devices
+    setEvents(prev => prev.filter(e => e.id !== last.id));
   };
 
   const ourScore = players.reduce((s, p) => s + calcPts(statsFor(p.id)), 0);
   const oppScore = calcPts(statsFor('OPP'));
 
   const playLogRef = useRef(null);
+  useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [events.length]);
+
+  // Auto-save metadata (clock, period, lineup) — not stats, those live in game_events
   const autoSaveTimer = useRef(null);
   const skipFirstAutoSave = useRef(true);
   useEffect(() => {
@@ -621,18 +420,19 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       supabase.from('games').update({
-        player_stats: stats, shot_log: shotLog,
-        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog },
         game_format: gameFormat, updated_at: new Date().toISOString(),
-      }).eq('id', game.id).then(({ error }) => { if (error) console.error('Auto-save failed:', error.message); });
+      }).eq('id', game.id).then(({ error }) => { if (error) console.error('Meta save failed:', error.message); });
     }, 800);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory]);
+  }, [onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat]);
 
   const saveGame = async () => {
+    // Compile final stats from events and save to player_stats for backwards compatibility
     const { error } = await supabase.from('games').update({
-      player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+      player_stats: stats,
+      shot_log: shotLog,
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog },
       game_format: gameFormat, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) onSaved();
@@ -641,8 +441,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+      player_stats: stats,
+      shot_log: shotLog,
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog },
       game_format: gameFormat, is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowReport(true); }
@@ -661,10 +462,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const bankMinutes = (atSeconds) => {
     setMinutesLog(prevLog => {
       const next = { ...prevLog };
-      (onCourt || []).forEach(pid => {
-        const startSec = checkInClock[pid];
-        if (startSec != null) { const elapsed = Math.max(0, startSec - atSeconds); next[pid] = (next[pid] || 0) + elapsed; }
-      });
+      (onCourt || []).forEach(pid => { const startSec = checkInClock[pid]; if (startSec != null) { const elapsed = Math.max(0, startSec - atSeconds); next[pid] = (next[pid] || 0) + elapsed; } });
       return next;
     });
   };
@@ -675,11 +473,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const confirmSub = () => {
     if (subOutIds.length === 0 || subOutIds.length !== subInIds.length) return;
-    setMinutesLog(prev => {
-      const next = { ...prev };
-      subOutIds.forEach(pid => { const elapsed = Math.max(0, (checkInClock[pid] || clockTotalSeconds) - clockTotalSeconds); next[pid] = (next[pid] || 0) + elapsed; });
-      return next;
-    });
+    setMinutesLog(prev => { const next = { ...prev }; subOutIds.forEach(pid => { const elapsed = Math.max(0, (checkInClock[pid] || clockTotalSeconds) - clockTotalSeconds); next[pid] = (next[pid] || 0) + elapsed; }); return next; });
     setCheckInClock(prev => { const next = { ...prev }; subOutIds.forEach(pid => { delete next[pid]; }); subInIds.forEach(pid => { next[pid] = clockTotalSeconds; }); return next; });
     setOnCourt(prev => [...prev.filter(pid => !subOutIds.includes(pid)), ...subInIds]);
     setSubOutIds([]); setSubInIds([]); setShowSubs(false);
@@ -697,8 +491,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setCurrentPeriod(p => p + 1); setClockMinutes(newMinutes); setClockSeconds(0);
     checkInLineup(onCourt || [], newMinutes * 60); setEditingClock(false);
   };
-
-  useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [actionHistory]);
 
   const liveMinutesFor = (pid) => {
     const banked = minutesLog[pid] || 0;
@@ -749,20 +541,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, padding: 16 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: '100%', maxWidth: 320, maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ fontWeight: 700, marginBottom: 4, color: COLORS.text }}>Edit Game Format</div>
-            <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 12 }}>Applies going forward — current period and clock stay as-is.</div>
             <FormatPicker value={draftFormat} onChange={setDraftFormat} />
-            <button onClick={() => {
-              const nothingTaggedYet = Object.keys(stats).length === 0 && shotLog.length === 0;
-              setGameFormat(draftFormat);
-              if (nothingTaggedYet) { setClockMinutes(draftFormat.minutes); setClockSeconds(0); checkInLineup(onCourt || [], draftFormat.minutes * 60); }
-              setEditingFormat(false); setDraftFormat(null);
-            }} style={{ width: '100%', padding: 11, background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 14, cursor: 'pointer', marginTop: 14 }}>Apply</button>
+            <button onClick={() => { setGameFormat(draftFormat); setEditingFormat(false); setDraftFormat(null); }} style={{ width: '100%', padding: 11, background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 14, cursor: 'pointer', marginTop: 14 }}>Apply</button>
             <button onClick={() => { setEditingFormat(false); setDraftFormat(null); }} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer', marginTop: 8 }}>Cancel</button>
           </div>
         </div>
       )}
 
-      {/* Scoreboard — full team name for us, full name for opponent */}
+      {/* Scoreboard */}
       {(() => {
         const ourPrimary = COLORS.navy;
         const oppPrimary = opponent?.primary_color || '#6b7280';
@@ -770,24 +556,18 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         return (
           <div style={{ display: 'flex', borderBottom: `2px solid ${COLORS.border}`, borderRadius: 8, overflow: 'hidden', marginBottom: 8, background: `linear-gradient(90deg, ${ourPrimary} 0%, #000 48%, #000 52%, ${oppPrimary} 100%)` }}>
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minWidth: 0 }}>
-              {logo ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourDisplayName.slice(0, 1)}</div>}
+              {logo ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: COLORS.gold }}>{ourDisplayName.slice(0, 1)}</div>}
               <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, color: COLORS.gold, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80, flexShrink: 1 }}>{ourDisplayName}</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</div>
             </div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minWidth: 80 }}>
-              <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, letterSpacing: 1.5 }}>
-                {gameFormat.periodLabel.slice(0, 1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}
-              </div>
-              <button onClick={openClockEdit} style={{ fontSize: 22, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
-                {clockMinutes}:{String(clockSeconds).padStart(2, '0')}
-              </button>
+              <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 700, letterSpacing: 1.5 }}>{gameFormat.periodLabel.slice(0, 1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}</div>
+              <button onClick={openClockEdit} style={{ fontSize: 22, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>{clockMinutes}:{String(clockSeconds).padStart(2, '0')}</button>
             </div>
             <div style={{ flex: 1, padding: '6px 6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 6, minWidth: 0 }}>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</div>
               <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.5, color: oppSecondary, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 80, flexShrink: 1 }}>{oppDisplayName}</div>
-              {opponent?.logo_url ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppDisplayName.slice(0, 1)}</div>}
+              {opponent?.logo_url ? <img src={opponent.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary, border: `1px solid ${oppSecondary}` }}>{oppDisplayName.slice(0, 1)}</div>}
             </div>
           </div>
         );
@@ -816,10 +596,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
 
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button onClick={() => setSelectedPlayer('OPP')}
-            style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10 }}>
-            {oppAbbr}
-          </button>
+          <button onClick={() => setSelectedPlayer('OPP')} style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10 }}>{oppAbbr}</button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
           <button onClick={() => setShowLiveBoxScore(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
           <button onClick={() => setShowShotChart(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🎯 Shots</button>
@@ -828,31 +605,28 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       </div>
 
-      {onBack && (
-        <button onClick={onBack} style={{ marginBottom: 8, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>
-          ← {backLabel || 'Back'}
-        </button>
-      )}
+      {onBack && <button onClick={onBack} style={{ marginBottom: 8, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>← {backLabel || 'Back'}</button>}
 
-      {actionHistory.length > 0 && (
+      {/* Game log — real-time feed of all events from all coaches */}
+      {events.length > 0 && (
         <div ref={playLogRef} style={{ height: 30, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
-          {actionHistory.map((a, i) => {
-            const def = STAT_DEFS.find(d => d.key === a.key);
-            const p = players.find(pl => pl.id === a.playerId);
-            const label = a.playerId === 'OPP' ? oppAbbr : (p ? `#${p.number || '—'} ${(p.name || '').split(' ')[0]}` : '#?');
+          {events.map((ev, i) => {
+            const def = STAT_DEFS.find(d => d.key === ev.stat_key);
+            const p = players.find(pl => pl.id === ev.player_id);
+            const label = ev.player_id === 'OPP' ? oppAbbr : (p ? `#${p.number || '—'} ${(p.name || '').split(' ')[0]}` : '#?');
             const isGreen = def ? def.value >= 0 : true;
-            const isLast = i === actionHistory.length - 1;
+            const isLast = i === events.length - 1;
             return (
-              <div key={`${a.playerId}-${a.key}-${i}`}
-                style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 2px', fontSize: 10, fontWeight: isLast ? 800 : 600, color: isGreen ? COLORS.statPosText : COLORS.statNegText, background: isLast ? (isGreen ? COLORS.statPosBg : COLORS.statNegBg) : 'transparent' }}>
+              <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 2px', fontSize: 10, fontWeight: isLast ? 800 : 600, color: isGreen ? COLORS.statPosText : COLORS.statNegText, background: isLast ? (isGreen ? COLORS.statPosBg : COLORS.statNegBg) : 'transparent' }}>
                 <span>{label}</span>
-                <span>{def ? def.label : a.key}</span>
+                <span>{def ? def.label : ev.stat_key}</span>
               </div>
             );
           })}
         </div>
       )}
 
+      {/* Stat buttons */}
       {(() => {
         const GREEN_KEYS = ["O", "D", "AST", "STL", "FTM"];
         const greenDefs = GREEN_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
@@ -860,12 +634,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         const specialPosDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value >= 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
         const specialNegDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value < 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
 
-        const btnStyle = (isGreen) => ({
-          padding: '10px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center',
-          background: isGreen ? COLORS.statPosBg : COLORS.statNegBg,
-          border: `2px solid ${isGreen ? COLORS.statPosBorder : COLORS.statNegBorder}`,
-          color: isGreen ? COLORS.statPosText : COLORS.statNegText, fontWeight: 700,
-        });
+        const btnStyle = (isGreen) => ({ padding: '10px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center', background: isGreen ? COLORS.statPosBg : COLORS.statNegBg, border: `2px solid ${isGreen ? COLORS.statPosBorder : COLORS.statNegBorder}`, color: isGreen ? COLORS.statPosText : COLORS.statNegText, fontWeight: 700 });
 
         const renderBtn = (def) => (
           <button key={def.key} onClick={() => tagStat(selectedPlayer, def.key)} disabled={!selectedPlayer}
@@ -875,47 +644,29 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           </button>
         );
 
-        const spPosBtn = () => {
-          const isOpen = specialPicker === 'pos';
-          return (
-            <button disabled={specialPosDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'pos')}
-              style={{ ...btnStyle(true), opacity: (selectedPlayer && specialPosDefs.length > 0) ? 1 : 0.5 }}>
-              <div style={{ fontSize: 9 }}>SPECIAL</div>
-              <div style={{ fontSize: 13, fontWeight: 900 }}>SP{isOpen ? ' ▲' : ''}</div>
-            </button>
-          );
-        };
-
-        const spNegBtn = () => {
-          const isOpen = specialPicker === 'neg';
-          return (
-            <button disabled={specialNegDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(isOpen ? null : 'neg')}
-              style={{ ...btnStyle(false), opacity: (selectedPlayer && specialNegDefs.length > 0) ? 1 : 0.5 }}>
-              <div style={{ fontSize: 9 }}>SPECIAL</div>
-              <div style={{ fontSize: 13, fontWeight: 900 }}>SP{isOpen ? ' ▲' : ''}</div>
-            </button>
-          );
-        };
-
-        const undoBtn = () => (
-          <button onClick={undoLastAction} disabled={actionHistory.length === 0}
-            style={{ padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700, background: 'rgba(255,255,255,0.05)', border: `2px solid ${actionHistory.length === 0 ? COLORS.border : COLORS.gold}`, color: actionHistory.length === 0 ? COLORS.muted : COLORS.gold, cursor: actionHistory.length === 0 ? 'default' : 'pointer', opacity: actionHistory.length === 0 ? 0.4 : 1 }}>
-            <div style={{ fontSize: 10 }}>UNDO</div>
-            <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
-          </button>
-        );
-
         const toBtn = STAT_DEFS.find(d => d.key === 'TO');
         const pfBtn = STAT_DEFS.find(d => d.key === 'PF');
         const apBtn = STAT_DEFS.find(d => d.key === 'AP');
         const ftaBtn = STAT_DEFS.find(d => d.key === 'FTA');
+
+        const undoBtn = () => (
+          <button onClick={undoLastAction} disabled={events.length === 0}
+            style={{ padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700, background: 'rgba(255,255,255,0.05)', border: `2px solid ${events.length === 0 ? COLORS.border : COLORS.gold}`, color: events.length === 0 ? COLORS.muted : COLORS.gold, cursor: events.length === 0 ? 'default' : 'pointer', opacity: events.length === 0 ? 0.4 : 1 }}>
+            <div style={{ fontSize: 10 }}>UNDO</div>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
+          </button>
+        );
 
         return (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {greenDefs.map(renderBtn)}
-                {spPosBtn()}
+                <button disabled={specialPosDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'pos' ? null : 'pos')}
+                  style={{ ...btnStyle(true), opacity: (selectedPlayer && specialPosDefs.length > 0) ? 1 : 0.5 }}>
+                  <div style={{ fontSize: 9 }}>SPECIAL</div>
+                  <div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'pos' ? ' ▲' : ''}</div>
+                </button>
               </div>
               <div style={{ width: 1, background: COLORS.border, alignSelf: 'stretch' }} />
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
@@ -923,7 +674,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
                 {pfBtn && renderBtn(pfBtn)}
                 {apBtn && renderBtn(apBtn)}
                 {ftaBtn && renderBtn(ftaBtn)}
-                {spNegBtn()}
+                <button disabled={specialNegDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'neg' ? null : 'neg')}
+                  style={{ ...btnStyle(false), opacity: (selectedPlayer && specialNegDefs.length > 0) ? 1 : 0.5 }}>
+                  <div style={{ fontSize: 9 }}>SPECIAL</div>
+                  <div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'neg' ? ' ▲' : ''}</div>
+                </button>
                 {undoBtn()}
               </div>
             </div>
@@ -931,26 +686,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             {specialPicker === 'pos' && (
               <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.green}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (+)</div>
-                {specialPosDefs.map(def => (
-                  <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
-                    <span>{def.label}</span>
-                    <span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span>
-                  </button>
-                ))}
+                {specialPosDefs.map(def => <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}><span>{def.label}</span><span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span></button>)}
               </div>
             )}
 
             {specialPicker === 'neg' && (
               <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.red}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (-)</div>
-                {specialNegDefs.map(def => (
-                  <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}>
-                    <span>{def.label}</span>
-                    <span style={{ color: COLORS.red, fontWeight: 900 }}>{def.value}</span>
-                  </button>
-                ))}
+                {specialNegDefs.map(def => <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}><span>{def.label}</span><span style={{ color: COLORS.red, fontWeight: 900 }}>{def.value}</span></button>)}
               </div>
             )}
           </div>
@@ -963,27 +706,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <div style={{ fontWeight: 700, marginBottom: 10 }}>Substitutions</div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Sub OUT ({subOutIds.length} selected):</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {players.filter(p => onCourt.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => toggleSubOut(p.id)}
-                  style={{ padding: '8px 10px', borderRadius: 8, border: subOutIds.includes(p.id) ? `2px solid ${COLORS.red}` : `1px solid ${COLORS.border}`, background: subOutIds.includes(p.id) ? COLORS.redBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>
-                  #{p.number || '—'} {p.name}
-                </button>
-              ))}
+              {players.filter(p => onCourt.includes(p.id)).map(p => <button key={p.id} onClick={() => toggleSubOut(p.id)} style={{ padding: '8px 10px', borderRadius: 8, border: subOutIds.includes(p.id) ? `2px solid ${COLORS.red}` : `1px solid ${COLORS.border}`, background: subOutIds.includes(p.id) ? COLORS.redBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>#{p.number || '—'} {p.name}</button>)}
             </div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Sub IN ({subInIds.length} selected):</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-              {players.filter(p => !onCourt.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => toggleSubIn(p.id)}
-                  style={{ padding: '8px 10px', borderRadius: 8, border: subInIds.includes(p.id) ? `2px solid ${COLORS.green}` : `1px solid ${COLORS.border}`, background: subInIds.includes(p.id) ? COLORS.greenBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>
-                  #{p.number || '—'} {p.name}
-                </button>
-              ))}
+              {players.filter(p => !onCourt.includes(p.id)).map(p => <button key={p.id} onClick={() => toggleSubIn(p.id)} style={{ padding: '8px 10px', borderRadius: 8, border: subInIds.includes(p.id) ? `2px solid ${COLORS.green}` : `1px solid ${COLORS.border}`, background: subInIds.includes(p.id) ? COLORS.greenBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>#{p.number || '—'} {p.name}</button>)}
             </div>
-            {subOutIds.length !== subInIds.length && (subOutIds.length > 0 || subInIds.length > 0) && (
-              <div style={{ fontSize: 12, color: COLORS.gold, marginBottom: 10, textAlign: 'center' }}>Select the same number on each side ({subOutIds.length} out, {subInIds.length} in)</div>
-            )}
-            <button onClick={confirmSub} disabled={subOutIds.length === 0 || subOutIds.length !== subInIds.length}
-              style={{ width: '100%', padding: 10, background: (subOutIds.length > 0 && subOutIds.length === subInIds.length) ? COLORS.gold : COLORS.navyDark, color: (subOutIds.length > 0 && subOutIds.length === subInIds.length) ? COLORS.textDark : COLORS.muted, border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Confirm Sub</button>
+            {subOutIds.length !== subInIds.length && (subOutIds.length > 0 || subInIds.length > 0) && <div style={{ fontSize: 12, color: COLORS.gold, marginBottom: 10, textAlign: 'center' }}>Select the same number on each side ({subOutIds.length} out, {subInIds.length} in)</div>}
+            <button onClick={confirmSub} disabled={subOutIds.length === 0 || subOutIds.length !== subInIds.length} style={{ width: '100%', padding: 10, background: (subOutIds.length > 0 && subOutIds.length === subInIds.length) ? COLORS.gold : COLORS.navyDark, color: (subOutIds.length > 0 && subOutIds.length === subInIds.length) ? COLORS.textDark : COLORS.muted, border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Confirm Sub</button>
             <button onClick={() => setShowSubs(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Done</button>
           </div>
         </div>
@@ -993,7 +723,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: 280 }}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>What does the clock show right now?</div>
-            <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 12 }}>Confirming this keeps everyone's minutes accurate.</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <input type="number" value={confirmMin} onChange={e => setConfirmMin(Math.max(0, parseInt(e.target.value) || 0))} style={{ width: 70, padding: 10, fontSize: 18, textAlign: 'center', background: COLORS.navyDark, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 7 }} />
               <span style={{ fontSize: 18, alignSelf: 'center' }}>:</span>
@@ -1008,7 +737,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: 300 }}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>End this game?</div>
-            <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>This marks the game as final. You can still reopen it later to fix a mistake.</div>
+            <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>This marks the game as final.</div>
             <button onClick={endGame} style={{ width: '100%', padding: 10, background: COLORS.red, color: COLORS.text, border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Yes, end game</button>
             <button onClick={() => setConfirmingEnd(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Not yet</button>
           </div>
@@ -1027,39 +756,43 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         <div style={{ position: 'fixed', inset: 0, background: '#fff', color: COLORS.textDark, zIndex: 200, overflowY: 'auto', padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
             <button onClick={() => { setShowReport(false); onSaved(); }} style={{ padding: '8px 14px', border: '1px solid #ccc', borderRadius: 8, background: 'none', cursor: 'pointer' }}>Close</button>
-            <button onClick={() => window.print()} style={{ padding: '8px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>🖨 Print / Save PDF</button>
+            <button onClick={() => {
+              const content = document.getElementById('final-report-printable')?.innerHTML || '';
+              const win = window.open('', '_blank');
+              win.document.write(`<!DOCTYPE html><html><head><title>Game Report</title><style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: Inter, sans-serif; color: #1a1a1a; padding: 20px; } table { width: 100%; border-collapse: collapse; } th { background: #1a3a6b; color: #fff; padding: 6px 4px; text-align: center; font-weight: 700; font-size: 9px; } td { padding: 5px 4px; text-align: center; border-bottom: 1px solid #dde3ef; font-size: 10px; } tr:nth-child(even) { background: #f0f4fa; } @page { size: landscape; margin: 10mm; }</style></head><body>${content}</body></html>`);
+              win.document.close(); win.focus(); setTimeout(() => { win.print(); win.close(); }, 500);
+            }} style={{ padding: '8px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>🖨 Print / Save PDF</button>
           </div>
-          <h2 style={{ marginBottom: 4 }}>Final: {ourScore} - {oppScore}</h2>
-          <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {opponent?.name || game.meta?.opponentName || '—'} · {game.meta?.date || ''}</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
-            <thead>
-              <tr style={{ background: COLORS.navy, color: COLORS.text }}>
-                <th style={{ padding: 6, textAlign: 'left' }}>Player</th>
-                <th style={{ padding: 6 }}>MIN</th>
-                <th style={{ padding: 6 }}>PTS</th>
-                <th style={{ padding: 6 }}>EFF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map(p => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td style={{ padding: 6 }}>#{p.number || '—'} {p.name}</td>
-                  <td style={{ padding: 6, textAlign: 'center' }}>{fmtMin(liveMinutesFor(p.id))}</td>
-                  <td style={{ padding: 6, textAlign: 'center' }}>{calcPts(statsFor(p.id))}</td>
-                  <td style={{ padding: 6, textAlign: 'center', fontWeight: 700, color: calcEff(statsFor(p.id)) >= 0 ? COLORS.green : COLORS.red }}>
-                    {calcEff(statsFor(p.id)) >= 0 ? '+' : ''}{calcEff(statsFor(p.id))}
-                  </td>
+          <div id="final-report-printable">
+            <h2 style={{ marginBottom: 4 }}>Final: {ourScore} - {oppScore}</h2>
+            <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {opponent?.name || game.meta?.opponentName || '—'} · {game.meta?.date || ''}</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+              <thead>
+                <tr style={{ background: COLORS.navy, color: COLORS.text }}>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Player</th>
+                  <th style={{ padding: 6 }}>MIN</th>
+                  <th style={{ padding: 6 }}>PTS</th>
+                  <th style={{ padding: 6 }}>EFF</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <CourtSVG shots={shotLog.filter(s => s.playerId !== 'OPP')} interactive={false} courtColor={court} laneColor={lane} />
+              </thead>
+              <tbody>
+                {players.map(p => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}>
+                    <td style={{ padding: 6 }}>#{p.number || '—'} {p.name}</td>
+                    <td style={{ padding: 6, textAlign: 'center' }}>{fmtMin(liveMinutesFor(p.id))}</td>
+                    <td style={{ padding: 6, textAlign: 'center' }}>{calcPts(statsFor(p.id))}</td>
+                    <td style={{ padding: 6, textAlign: 'center', fontWeight: 700, color: calcEff(statsFor(p.id)) >= 0 ? COLORS.green : COLORS.red }}>{calcEff(statsFor(p.id)) >= 0 ? '+' : ''}{calcEff(statsFor(p.id))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <CourtSVG shots={shotLog.filter(s => s.playerId !== 'OPP')} interactive={false} courtColor={court} laneColor={lane} />
+          </div>
         </div>
       )}
     </div>
   );
 }
-
 
 function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
@@ -1090,7 +823,6 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   );
 }
 
-
 export default function GameScreen({ team, season, prefill, onPrefillConsumed }) {
   const { colors: COLORS, logo, teamName } = useTheme();
   const [opponents, setOpponents] = useState([]);
@@ -1113,11 +845,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
   }, [season.id, team.id]);
 
   useEffect(() => {
-    if (prefill) {
-      setOppId(prefill.opponentId || '');
-      setDate(prefill.date || '');
-      if (onPrefillConsumed) onPrefillConsumed();
-    }
+    if (prefill) { setOppId(prefill.opponentId || ''); setDate(prefill.date || ''); if (onPrefillConsumed) onPrefillConsumed(); }
   }, [prefill]);
 
   const deleteGame = async (gameId) => {
@@ -1131,11 +859,9 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
     const opp = opponents.find(o => o.id === oppId);
     const format = GAME_FORMAT_PRESETS.find(f => f.key === formatKey) || GAME_FORMAT_PRESETS[0];
     const { data, error } = await supabase.from('games').insert({
-      season_id: season.id,
-      opponent_id: oppId,
+      season_id: season.id, opponent_id: oppId,
       meta: { opponentName: opp.name, date },
-      player_stats: {},
-      game_format: format,
+      player_stats: {}, game_format: format,
     }).select().single();
     if (!error) setActiveGame(data);
   };
@@ -1148,10 +874,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
 
   return (
     <div>
-      {hudlCompareGame && (
-        <HudlCompareModal game={hudlCompareGame} team={team} onClose={() => setHudlCompareGame(null)} onSaved={() => { loadGames(); }} />
-      )}
-
+      {hudlCompareGame && <HudlCompareModal game={hudlCompareGame} team={team} onClose={() => setHudlCompareGame(null)} onSaved={() => { loadGames(); }} />}
       <div style={{ border: `1px solid ${COLORS.border}`, background: COLORS.navyMid, padding: 16, marginBottom: 20, borderRadius: 10 }}>
         <h4 style={{ color: COLORS.gold, marginTop: 0, marginBottom: 12, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Start New Game</h4>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -1166,7 +889,6 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
           <button onClick={startGame} style={{ padding: '9px 18px', background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start Game →</button>
         </div>
       </div>
-
       <h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {games.map(g => {
@@ -1176,20 +898,11 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
               <MiniGameScoreboard game={g} opponentRecord={opponentRecord} COLORS={COLORS} logo={logo} teamName={teamName} />
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 {!g.is_final ? (
-                  <button onClick={() => setActiveGame(g)}
-                    style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', color: COLORS.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
-                    Continue Tagging
-                  </button>
+                  <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', color: COLORS.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
                 ) : (
                   <>
-                    <button onClick={() => setActiveGame(g)}
-                      style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                      View / Edit
-                    </button>
-                    <button onClick={() => setHudlCompareGame(g)}
-                      style={{ padding: '8px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>
-                      H
-                    </button>
+                    <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>View / Edit</button>
+                    <button onClick={() => setHudlCompareGame(g)} style={{ padding: '8px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>H</button>
                   </>
                 )}
                 {confirmingDeleteId === g.id ? (
