@@ -249,7 +249,6 @@ Rules: only non-zero stats players, jersey number digits only, fgm/fga = TOTAL i
   );
 }
 
-// ── Build stats from events ───────────────────────────────────────────────────
 function buildStatsFromEvents(events) {
   const stats = {};
   events.forEach(ev => {
@@ -260,13 +259,7 @@ function buildStatsFromEvents(events) {
 }
 
 function buildShotLogFromEvents(events) {
-  return events
-    .filter(ev => ev.meta?.isShot)
-    .map(ev => ({ playerId: ev.player_id, statKey: ev.stat_key, x: ev.meta.x, y: ev.meta.y, make: ev.meta.make, period: ev.period }));
-}
-
-function buildActionHistoryFromEvents(events) {
-  return events.map(ev => ({ playerId: ev.player_id, key: ev.stat_key, loggedShot: !!ev.meta?.isShot, eventId: ev.id }));
+  return events.filter(ev => ev.meta?.isShot).map(ev => ({ playerId: ev.player_id, statKey: ev.stat_key, x: ev.meta.x, y: ev.meta.y, make: ev.meta.make, period: ev.period }));
 }
 
 export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
@@ -301,10 +294,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [specialPicker, setSpecialPicker] = useState(null);
   const [statDefsReady, setStatDefsReady] = useState(false);
 
-  // Derived from events
   const stats = buildStatsFromEvents(events);
   const shotLog = buildShotLogFromEvents(events);
-  const actionHistory = buildActionHistoryFromEvents(events);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,33 +320,17 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
       .then(({ data, error }) => { if (!error) setOpponent(data); });
   }, [game.opponent_id]);
 
-  // Load existing events
   useEffect(() => {
     supabase.from('game_events').select('*').eq('game_id', game.id).order('created_at')
       .then(({ data, error }) => { if (!error && data) setEvents(data); });
   }, [game.id]);
 
-  // Real-time subscription — fires whenever any coach tags a stat
   useEffect(() => {
     const channel = supabase.channel(`game-events-${game.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'game_events',
-        filter: `game_id=eq.${game.id}`,
-      }, (payload) => {
-        setEvents(prev => {
-          // Avoid duplicates if this device inserted the event
-          if (prev.find(e => e.id === payload.new.id)) return prev;
-          return [...prev, payload.new];
-        });
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_events', filter: `game_id=eq.${game.id}` }, (payload) => {
+        setEvents(prev => prev.find(e => e.id === payload.new.id) ? prev : [...prev, payload.new]);
       })
-      .on('postgres_changes', {
-        event: 'DELETE',
-        schema: 'public',
-        table: 'game_events',
-        filter: `game_id=eq.${game.id}`,
-      }, (payload) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'game_events', filter: `game_id=eq.${game.id}` }, (payload) => {
         setEvents(prev => prev.filter(e => e.id !== payload.old.id));
       })
       .subscribe();
@@ -364,29 +339,20 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const statsFor = (id) => stats[id] || emptyPlayerStats();
 
-  // Tag a stat — writes ONE event row immediately
   const tagStat = async (playerId, key, shotMeta) => {
     if (!playerId) return;
     const { data, error } = await supabase.from('game_events').insert({
-      game_id: game.id,
-      player_id: playerId,
-      stat_key: key,
-      value: 1,
-      period: currentPeriod,
-      clock_seconds: clockMinutes * 60 + clockSeconds,
+      game_id: game.id, player_id: playerId, stat_key: key, value: 1,
+      period: currentPeriod, clock_seconds: clockMinutes * 60 + clockSeconds,
       meta: shotMeta || null,
     }).select().single();
-    if (!error && data) {
-      // Optimistically add to local state immediately so UI feels instant
-      setEvents(prev => prev.find(e => e.id === data.id) ? prev : [...prev, data]);
-    }
+    if (!error && data) setEvents(prev => prev.find(e => e.id === data.id) ? prev : [...prev, data]);
     setSelectedPlayer(null);
   };
 
   const handleCourtTap = (x, y, px, py, rectW, rectH) => {
     if (!selectedPlayer) return;
-    const inside = isInsideArc(x, y);
-    setPendingShot({ x, y, px, py, rectW, rectH, is2pt: inside });
+    setPendingShot({ x, y, px, py, rectW, rectH, is2pt: isInsideArc(x, y) });
   };
 
   const confirmShot = async (make) => {
@@ -397,12 +363,10 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setPendingShot(null);
   };
 
-  // Undo — deletes the last event row
   const undoLastAction = async () => {
     if (events.length === 0) return;
     const last = events[events.length - 1];
     await supabase.from('game_events').delete().eq('id', last.id);
-    // Real-time DELETE subscription will update state on all devices
     setEvents(prev => prev.filter(e => e.id !== last.id));
   };
 
@@ -412,7 +376,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const playLogRef = useRef(null);
   useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [events.length]);
 
-  // Auto-save metadata (clock, period, lineup) — not stats, those live in game_events
   const autoSaveTimer = useRef(null);
   const skipFirstAutoSave = useRef(true);
   useEffect(() => {
@@ -428,10 +391,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   }, [onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat]);
 
   const saveGame = async () => {
-    // Compile final stats from events and save to player_stats for backwards compatibility
     const { error } = await supabase.from('games').update({
-      player_stats: stats,
-      shot_log: shotLog,
+      player_stats: stats, shot_log: shotLog,
       meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog },
       game_format: gameFormat, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
@@ -441,8 +402,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: stats,
-      shot_log: shotLog,
+      player_stats: stats, shot_log: shotLog,
       meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog },
       game_format: gameFormat, is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
@@ -501,16 +461,13 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const fmtMin = (totalSeconds) => { const m = Math.floor(totalSeconds / 60); const s = totalSeconds % 60; return m + ':' + String(s).padStart(2, '0'); };
 
   if (!statDefsReady) return <p style={{ color: COLORS.muted }}>Loading...</p>;
-
-  if (!onCourt) {
-    return (
-      <div>
-        <h3>Pick Your 5 Starters</h3>
-        <p style={{ color: COLORS.muted, fontSize: 13 }}>Tap exactly 5 players to begin the game.</p>
-        <StarterPicker players={players} onConfirm={startWithLineup} />
-      </div>
-    );
-  }
+  if (!onCourt) return (
+    <div>
+      <h3>Pick Your 5 Starters</h3>
+      <p style={{ color: COLORS.muted, fontSize: 13 }}>Tap exactly 5 players to begin the game.</p>
+      <StarterPicker players={players} onConfirm={startWithLineup} />
+    </div>
+  );
 
   const ourDisplayName = teamName || 'TM';
   const oppDisplayName = opponent?.name || game.meta?.opponentName || 'OPP';
@@ -528,9 +485,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
               <input type="number" value={editSec} onChange={e => setEditSec(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))} style={{ width: 70, padding: 10, fontSize: 18, textAlign: 'center', background: COLORS.navyDark, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 7 }} />
             </div>
             <button onClick={saveClockEdit} style={{ width: '100%', padding: 10, background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Save Clock Time</button>
-            <button onClick={advancePeriod} style={{ width: '100%', padding: 10, background: COLORS.greenBg, color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>
-              End {gameFormat.periodLabel} {currentPeriod} → Start {currentPeriod >= gameFormat.periods ? 'OT' : gameFormat.periodLabel + ' ' + (currentPeriod + 1)}
-            </button>
+            <button onClick={advancePeriod} style={{ width: '100%', padding: 10, background: COLORS.greenBg, color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>End {gameFormat.periodLabel} {currentPeriod} → Start {currentPeriod >= gameFormat.periods ? 'OT' : gameFormat.periodLabel + ' ' + (currentPeriod + 1)}</button>
             <button onClick={() => { setDraftFormat(gameFormat); setEditingFormat(true); }} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.gold}`, color: COLORS.gold, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>▼ Edit Game Format</button>
             <button onClick={() => setEditingClock(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
           </div>
@@ -548,7 +503,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Scoreboard */}
       {(() => {
         const ourPrimary = COLORS.navy;
         const oppPrimary = opponent?.primary_color || '#6b7280';
@@ -590,11 +544,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             );
           })}
         </div>
-
         <div style={{ flex: 1 }}>
           <MiniCourtTappable courtColor={court} laneColor={lane} onTap={handleCourtTap} pendingShot={pendingShot} onConfirmShot={confirmShot} onCancelShot={() => setPendingShot(null)} COLORS={COLORS} />
         </div>
-
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button onClick={() => setSelectedPlayer('OPP')} style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer === 'OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer === 'OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer === 'OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10 }}>{oppAbbr}</button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
@@ -607,7 +559,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
       {onBack && <button onClick={onBack} style={{ marginBottom: 8, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>← {backLabel || 'Back'}</button>}
 
-      {/* Game log — real-time feed of all events from all coaches */}
       {events.length > 0 && (
         <div ref={playLogRef} style={{ height: 30, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
           {events.map((ev, i) => {
@@ -626,46 +577,30 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {/* Stat buttons */}
       {(() => {
         const GREEN_KEYS = ["O", "D", "AST", "STL", "FTM"];
         const greenDefs = GREEN_KEYS.map(k => STAT_DEFS.find(d => d.key === k)).filter(Boolean);
         const LIVE_KEYS = new Set([...GREEN_KEYS, "TO", "AP", "FTA", "PF"]);
         const specialPosDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value >= 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
         const specialNegDefs = STAT_DEFS.filter(d => !LIVE_KEYS.has(d.key) && d.value < 0 && !['3PM','3PA','2PM','2PA'].includes(d.key));
-
         const btnStyle = (isGreen) => ({ padding: '10px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center', background: isGreen ? COLORS.statPosBg : COLORS.statNegBg, border: `2px solid ${isGreen ? COLORS.statPosBorder : COLORS.statNegBorder}`, color: isGreen ? COLORS.statPosText : COLORS.statNegText, fontWeight: 700 });
-
         const renderBtn = (def) => (
-          <button key={def.key} onClick={() => tagStat(selectedPlayer, def.key)} disabled={!selectedPlayer}
-            style={{ ...btnStyle(def.value >= 0), opacity: selectedPlayer ? 1 : 0.5 }}>
+          <button key={def.key} onClick={() => tagStat(selectedPlayer, def.key)} disabled={!selectedPlayer} style={{ ...btnStyle(def.value >= 0), opacity: selectedPlayer ? 1 : 0.5 }}>
             <div style={{ fontSize: 10 }}>{def.abbr}</div>
             <div style={{ fontSize: 13, fontWeight: 900 }}>{statsFor(selectedPlayer || '')[def.key] || 0}</div>
           </button>
         );
-
         const toBtn = STAT_DEFS.find(d => d.key === 'TO');
         const pfBtn = STAT_DEFS.find(d => d.key === 'PF');
         const apBtn = STAT_DEFS.find(d => d.key === 'AP');
         const ftaBtn = STAT_DEFS.find(d => d.key === 'FTA');
-
-        const undoBtn = () => (
-          <button onClick={undoLastAction} disabled={events.length === 0}
-            style={{ padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700, background: 'rgba(255,255,255,0.05)', border: `2px solid ${events.length === 0 ? COLORS.border : COLORS.gold}`, color: events.length === 0 ? COLORS.muted : COLORS.gold, cursor: events.length === 0 ? 'default' : 'pointer', opacity: events.length === 0 ? 0.4 : 1 }}>
-            <div style={{ fontSize: 10 }}>UNDO</div>
-            <div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
-          </button>
-        );
-
         return (
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, alignContent: 'start' }}>
                 {greenDefs.map(renderBtn)}
-                <button disabled={specialPosDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'pos' ? null : 'pos')}
-                  style={{ ...btnStyle(true), opacity: (selectedPlayer && specialPosDefs.length > 0) ? 1 : 0.5 }}>
-                  <div style={{ fontSize: 9 }}>SPECIAL</div>
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'pos' ? ' ▲' : ''}</div>
+                <button disabled={specialPosDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'pos' ? null : 'pos')} style={{ ...btnStyle(true), opacity: (selectedPlayer && specialPosDefs.length > 0) ? 1 : 0.5 }}>
+                  <div style={{ fontSize: 9 }}>SPECIAL</div><div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'pos' ? ' ▲' : ''}</div>
                 </button>
               </div>
               <div style={{ width: 1, background: COLORS.border, alignSelf: 'stretch' }} />
@@ -674,22 +609,20 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
                 {pfBtn && renderBtn(pfBtn)}
                 {apBtn && renderBtn(apBtn)}
                 {ftaBtn && renderBtn(ftaBtn)}
-                <button disabled={specialNegDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'neg' ? null : 'neg')}
-                  style={{ ...btnStyle(false), opacity: (selectedPlayer && specialNegDefs.length > 0) ? 1 : 0.5 }}>
-                  <div style={{ fontSize: 9 }}>SPECIAL</div>
-                  <div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'neg' ? ' ▲' : ''}</div>
+                <button disabled={specialNegDefs.length === 0 || !selectedPlayer} onClick={() => setSpecialPicker(specialPicker === 'neg' ? null : 'neg')} style={{ ...btnStyle(false), opacity: (selectedPlayer && specialNegDefs.length > 0) ? 1 : 0.5 }}>
+                  <div style={{ fontSize: 9 }}>SPECIAL</div><div style={{ fontSize: 13, fontWeight: 900 }}>SP{specialPicker === 'neg' ? ' ▲' : ''}</div>
                 </button>
-                {undoBtn()}
+                <button onClick={undoLastAction} disabled={events.length === 0} style={{ padding: '10px 2px', borderRadius: 7, textAlign: 'center', fontWeight: 700, background: 'rgba(255,255,255,0.05)', border: `2px solid ${events.length === 0 ? COLORS.border : COLORS.gold}`, color: events.length === 0 ? COLORS.muted : COLORS.gold, cursor: events.length === 0 ? 'default' : 'pointer', opacity: events.length === 0 ? 0.4 : 1 }}>
+                  <div style={{ fontSize: 10 }}>UNDO</div><div style={{ fontSize: 13, fontWeight: 900 }}>↩</div>
+                </button>
               </div>
             </div>
-
             {specialPicker === 'pos' && (
               <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.green}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (+)</div>
                 {specialPosDefs.map(def => <button key={def.key} onClick={() => { setSpecialPicker(null); tagStat(selectedPlayer, def.key); }} disabled={!selectedPlayer} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '10px 10px', background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 7, color: COLORS.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 6, opacity: selectedPlayer ? 1 : 0.5 }}><span>{def.label}</span><span style={{ color: COLORS.green, fontWeight: 900 }}>+{def.value}</span></button>)}
               </div>
             )}
-
             {specialPicker === 'neg' && (
               <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 6, background: COLORS.navyMid, border: `2px solid ${COLORS.red}`, borderRadius: 10, padding: 8, zIndex: 50, minWidth: 170, maxHeight: '60vh', overflowY: 'auto', boxShadow: '0 -6px 24px rgba(0,0,0,0.5)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted, marginBottom: 6, textAlign: 'center' }}>Special (-)</div>
@@ -744,13 +677,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {showLiveBoxScore && (
-        <BoxScoreReport team={team} teamName={teamName} logo={logo} opponent={opponent || { name: game.meta?.opponentName }} players={players} stats={stats} minutesLog={minutesLog} checkInClock={checkInClock} onCourt={onCourt} clockTotalSeconds={clockTotalSeconds} shotLog={shotLog} court={court} lane={lane} onClose={() => setShowLiveBoxScore(false)} />
-      )}
-
-      {showShotChart && (
-        <ShotChartView players={players} shotLog={shotLog} opponent={opponent || { name: game.meta?.opponentName }} court={court} lane={lane} onClose={() => setShowShotChart(false)} />
-      )}
+      {showLiveBoxScore && <BoxScoreReport team={team} teamName={teamName} logo={logo} opponent={opponent || { name: game.meta?.opponentName }} players={players} stats={stats} minutesLog={minutesLog} checkInClock={checkInClock} onCourt={onCourt} clockTotalSeconds={clockTotalSeconds} shotLog={shotLog} court={court} lane={lane} onClose={() => setShowLiveBoxScore(false)} />}
+      {showShotChart && <ShotChartView players={players} shotLog={shotLog} opponent={opponent || { name: game.meta?.opponentName }} court={court} lane={lane} onClose={() => setShowShotChart(false)} />}
 
       {showReport && (
         <div style={{ position: 'fixed', inset: 0, background: '#fff', color: COLORS.textDark, zIndex: 200, overflowY: 'auto', padding: 20 }}>
@@ -767,14 +695,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <h2 style={{ marginBottom: 4 }}>Final: {ourScore} - {oppScore}</h2>
             <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {opponent?.name || game.meta?.opponentName || '—'} · {game.meta?.date || ''}</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
-              <thead>
-                <tr style={{ background: COLORS.navy, color: COLORS.text }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Player</th>
-                  <th style={{ padding: 6 }}>MIN</th>
-                  <th style={{ padding: 6 }}>PTS</th>
-                  <th style={{ padding: 6 }}>EFF</th>
-                </tr>
-              </thead>
+              <thead><tr style={{ background: COLORS.navy, color: COLORS.text }}><th style={{ padding: 6, textAlign: 'left' }}>Player</th><th style={{ padding: 6 }}>MIN</th><th style={{ padding: 6 }}>PTS</th><th style={{ padding: 6 }}>EFF</th></tr></thead>
               <tbody>
                 {players.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}>
@@ -801,22 +722,18 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName }) {
   const ourScore = game.meta?.ourScore ?? 0;
   const theirScore = game.meta?.theirScore ?? 0;
   const isFinal = !!game.is_final;
-
   const teamRow = (color, logoSrc, fallbackInitial, fallbackColor, fallbackBorder, name, score, isTop) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: `linear-gradient(90deg, ${color} 0%, #000 78%, #000 100%)`, borderRadius: isTop ? '6px 6px 0 0' : '0 0 6px 6px' }}>
-      {logoSrc ? <img src={logoSrc} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
-        : <div style={{ width: 20, height: 20, borderRadius: 4, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: fallbackColor, border: fallbackBorder ? `1px solid ${fallbackBorder}` : 'none' }}>{fallbackInitial}</div>}
+      {logoSrc ? <img src={logoSrc} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 20, height: 20, borderRadius: 4, background: 'rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: fallbackColor, border: fallbackBorder ? `1px solid ${fallbackBorder}` : 'none' }}>{fallbackInitial}</div>}
       <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.5, color: isTop ? COLORS.gold : fallbackColor, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>{name}</div>
       {score != null && <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{score}</div>}
     </div>
   );
-
   return (
     <div style={{ borderRadius: 6, overflow: 'hidden', borderBottom: `1px solid ${COLORS.border}` }}>
       {teamRow(COLORS.navy, logo, (teamName || '?').slice(0, 1), COLORS.gold, null, teamName || 'TM', ourScore, true)}
       <div style={{ padding: '2px 0', textAlign: 'center', background: '#0d1b2e' }}>
-        {isFinal ? <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
-          : <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.gold }}>IN PROGRESS</div>}
+        {isFinal ? <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div> : <div style={{ fontSize: 9, fontWeight: 700, color: COLORS.gold }}>IN PROGRESS</div>}
       </div>
       {teamRow(oppPrimary, opponentRecord?.logo_url, (oppName || '?').slice(0, 1), oppSecondary, oppSecondary, oppName, theirScore, false)}
     </div>
@@ -866,9 +783,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
     if (!error) setActiveGame(data);
   };
 
-  if (activeGame) {
-    return <ActiveGame team={team} game={activeGame} onSaved={() => { setActiveGame(null); loadGames(); }} onBack={() => { setActiveGame(null); loadGames(); }} backLabel="Back to Games" />;
-  }
+  if (activeGame) return <ActiveGame team={team} game={activeGame} onSaved={() => { setActiveGame(null); loadGames(); }} onBack={() => { setActiveGame(null); loadGames(); }} backLabel="Back to Games" />;
 
   const inputStyle = { padding: '9px 10px', background: COLORS.navyDark, border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.text, fontSize: 13 };
 
