@@ -809,3 +809,36 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
         </div>
       </div>
       <h4 style={{ color: COLORS
+<h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {games.map(g => {
+          const opponentRecord = opponents.find(o => o.name === g.opponents?.name);
+          return (
+            <div key={g.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 8, background: COLORS.navyMid }}>
+              <MiniGameScoreboard game={g} opponentRecord={opponentRecord} COLORS={COLORS} logo={logo} teamName={teamName} />
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                {!g.is_final ? (
+                  <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', color: COLORS.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
+                ) : (
+                  <>
+                    <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>View / Edit</button>
+                    <button onClick={() => setHudlCompareGame(g)} style={{ padding: '8px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>H</button>
+                  </>
+                )}
+                {confirmingDeleteId === g.id ? (
+                  <>
+                    <button onClick={() => deleteGame(g.id)} style={{ padding: '8px 10px', background: COLORS.red, color: COLORS.text, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Confirm</button>
+                    <button onClick={() => setConfirmingDeleteId(null)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+                  </>
+                ) : (
+                  <button onClick={() => setConfirmingDeleteId(g.id)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.red, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Delete</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {games.length === 0 && <p style={{ color: COLORS.muted }}>No games saved yet.</p>}
+    </div>
+  );
+}
