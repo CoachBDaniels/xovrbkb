@@ -12,7 +12,6 @@ function fmtScheduleDate(dateStr) {
   return `${MONTH_NAMES[m - 1]} ${d}`;
 }
 
-// ── Stat keys for direct editor ───────────────────────────────────────────────
 const STAT_KEYS = [
   { key: '2PM', label: '2PM' }, { key: '2PA', label: '2PA' },
   { key: '3PM', label: '3PM' }, { key: '3PA', label: '3PA' },
@@ -28,14 +27,15 @@ function calcPts(s) {
   return ((s['2PM'] || 0) * 2) + ((s['3PM'] || 0) * 3) + (s['FTM'] || 0);
 }
 
-// ── Game Editor Modal ─────────────────────────────────────────────────────────
 function GameEditorModal({ game, team, onClose, onSaved }) {
   const { colors: COLORS } = useTheme();
   const [players, setPlayers] = useState([]);
   const [stats, setStats] = useState(JSON.parse(JSON.stringify(game.player_stats || {})));
   const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory ? [...game.meta.actionHistory] : null);
   const [saving, setSaving] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editPlayer, setEditPlayer] = useState('');
+  const [editKey, setEditKey] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
 
   const isEventMode = actionHistory !== null && actionHistory.length > 0;
@@ -45,7 +45,6 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
       .then(({ data }) => { if (data) setPlayers(data); });
   }, [team.id]);
 
-  // Rebuild stats from action history
   const rebuildStats = (history) => {
     const rebuilt = {};
     history.forEach(a => {
@@ -61,15 +60,20 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
     return p ? `#${p.number || '—'} ${p.name}` : '#?';
   };
 
-  // Event mode — reassign or delete individual events
-  const updateEvent = (idx, newPlayerId, newKey) => {
+  const openEdit = (idx) => {
+    setEditingIdx(idx);
+    setEditPlayer(actionHistory[idx].playerId);
+    setEditKey(actionHistory[idx].key);
+  };
+
+  const applyEdit = () => {
     setActionHistory(prev => {
       const next = [...prev];
-      next[idx] = { ...next[idx], playerId: newPlayerId, key: newKey };
+      next[editingIdx] = { ...next[editingIdx], playerId: editPlayer, key: editKey };
       setStats(rebuildStats(next));
       return next;
     });
-    setEditingEvent(null);
+    setEditingIdx(null);
   };
 
   const deleteEvent = (idx) => {
@@ -78,10 +82,9 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
       setStats(rebuildStats(next));
       return next;
     });
-    setEditingEvent(null);
+    setEditingIdx(null);
   };
 
-  // Direct mode — increment/decrement stat cells
   const adjustStat = (playerId, key, delta) => {
     setStats(prev => {
       const cur = prev[playerId] || {};
@@ -93,89 +96,72 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updateData = {
-        player_stats: stats,
-        updated_at: new Date().toISOString(),
-      };
-      if (isEventMode) {
-        updateData.meta = { ...game.meta, actionHistory };
-      }
+      const updateData = { player_stats: stats, updated_at: new Date().toISOString() };
+      if (isEventMode) updateData.meta = { ...game.meta, actionHistory };
       const { error } = await supabase.from('games').update(updateData).eq('id', game.id);
       if (error) throw new Error(error.message);
-      onSaved();
-      onClose();
-    } catch (err) {
-      alert('Save failed: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+      onSaved(); onClose();
+    } catch (err) { alert('Save failed: ' + err.message); }
+    finally { setSaving(false); }
   };
 
   const oppName = game.meta?.opponentName || game.opponents?.name || 'OPP';
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: COLORS.navyMid, borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: COLORS.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Close</button>
-        <div style={{ color: COLORS.gold, fontWeight: 800, fontSize: 13 }}>
-          ✏️ Edit Game · vs. {oppName}
-        </div>
+        <div style={{ color: COLORS.gold, fontWeight: 800, fontSize: 13 }}>✏️ Edit Game · vs. {oppName}</div>
         <button onClick={handleSave} disabled={saving} style={{ padding: '6px 14px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {/* Mode indicator */}
         <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '8px 12px', marginBottom: 16, fontSize: 12, color: COLORS.muted }}>
           {isEventMode
-            ? '📋 Event log mode — tap any row to reassign the player or stat, or delete it'
-            : '📊 Direct edit mode — tap + / − to adjust any stat per player'}
+            ? '📋 Event log — tap Edit on any row to reassign the player or stat'
+            : '📊 Direct edit — tap + / − to adjust any stat per player'}
         </div>
 
-        {/* ── EVENT LOG MODE ── */}
         {isEventMode && (
           <div>
             {actionHistory.map((a, i) => {
-              const isEditing = editingEvent === i;
+              const isEditing = editingIdx === i;
               return (
                 <div key={i} style={{ background: isEditing ? COLORS.navyMid : 'rgba(255,255,255,0.03)', border: `1px solid ${isEditing ? COLORS.gold : COLORS.border}`, borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
                   {!isEditing ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: 12, color: COLORS.text }}>
                         <span style={{ fontWeight: 700 }}>{playerName(a.playerId)}</span>
-                        <span style={{ color: COLORS.muted, margin: '0 8px' }}>·</span>
-                        <span style={{ color: COLORS.gold }}>{a.key}</span>
-                        {a.period && <span style={{ color: COLORS.muted, fontSize: 10, marginLeft: 8 }}>Q{a.period}</span>}
+                        <span style={{ color: COLORS.muted, margin: '0 6px' }}>·</span>
+                        <span style={{ color: COLORS.gold, fontWeight: 700 }}>{a.key}</span>
+                        {a.period && <span style={{ color: COLORS.muted, fontSize: 10, marginLeft: 6 }}>Q{a.period}</span>}
                       </div>
-                      <button onClick={() => setEditingEvent(i)} style={{ padding: '4px 10px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.muted, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>Edit</button>
+                      <button onClick={() => openEdit(i)} style={{ padding: '4px 10px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.muted, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>Edit</button>
                     </div>
                   ) : (
                     <div>
-                      <div style={{ fontSize: 11, color: COLORS.gold, fontWeight: 700, marginBottom: 8 }}>Edit tag #{i + 1}</div>
-                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                        <select
-                          defaultValue={a.playerId}
-                          onChange={e => setEditingEvent({ ...a, playerId: e.target.value })}
-                          style={{ flex: 1, padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${COLORS.gold}`, borderRadius: 7, color: COLORS.gold, fontSize: 12, boxSizing: 'border-box' }}>
+                      <div style={{ fontSize: 11, color: COLORS.gold, fontWeight: 700, marginBottom: 10 }}>Editing tag #{i + 1}</div>
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 4 }}>Player</div>
+                        <select value={editPlayer} onChange={e => setEditPlayer(e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', background: COLORS.navyDark, border: `1px solid ${COLORS.gold}`, borderRadius: 7, color: COLORS.gold, fontSize: 13, boxSizing: 'border-box' }}>
                           {players.map(p => <option key={p.id} value={p.id}>#{p.number || '—'} {p.name}</option>)}
-                          <option value="OPP">OPP</option>
+                          <option value="OPP">OPP (Opponent)</option>
                         </select>
-                        <select
-                          defaultValue={a.key}
-                          onChange={e => setEditingEvent(prev => typeof prev === 'object' ? { ...prev, key: e.target.value } : { ...a, key: e.target.value })}
-                          style={{ flex: 1, padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${COLORS.gold}`, borderRadius: 7, color: COLORS.gold, fontSize: 12, boxSizing: 'border-box' }}>
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 4 }}>Stat</div>
+                        <select value={editKey} onChange={e => setEditKey(e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', background: COLORS.navyDark, border: `1px solid ${COLORS.gold}`, borderRadius: 7, color: COLORS.gold, fontSize: 13, boxSizing: 'border-box' }}>
                           {STAT_KEYS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                         </select>
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => {
-                          const edited = typeof editingEvent === 'object' ? editingEvent : a;
-                          updateEvent(i, edited.playerId || a.playerId, edited.key || a.key);
-                        }} style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>✓ Apply</button>
-                        <button onClick={() => deleteEvent(i)} style={{ flex: 1, padding: 8, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 7, color: COLORS.red, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>🗑 Delete</button>
-                        <button onClick={() => setEditingEvent(null)} style={{ padding: '8px 12px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={applyEdit} style={{ flex: 1, padding: 10, background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>✓ Apply</button>
+                        <button onClick={() => deleteEvent(i)} style={{ flex: 1, padding: 10, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 7, color: COLORS.red, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑 Delete</button>
+                        <button onClick={() => setEditingIdx(null)} style={{ padding: '10px 14px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.muted, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                       </div>
                     </div>
                   )}
@@ -186,10 +172,8 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
           </div>
         )}
 
-        {/* ── DIRECT EDIT MODE ── */}
         {!isEventMode && (
           <div>
-            {/* Player selector */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
               {[...players, { id: 'OPP', name: 'Opponent', number: '' }].map(p => {
                 const sel = selectedPlayer === p.id;
@@ -203,8 +187,7 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
                 );
               })}
             </div>
-
-            {selectedPlayer && (
+            {selectedPlayer ? (
               <div>
                 <div style={{ fontSize: 11, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                   {selectedPlayer === 'OPP' ? 'Opponent' : playerName(selectedPlayer)}
@@ -225,8 +208,7 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
                   })}
                 </div>
               </div>
-            )}
-            {!selectedPlayer && <div style={{ color: COLORS.muted, textAlign: 'center', padding: 32, fontSize: 13 }}>Select a player above to edit their stats.</div>}
+            ) : <div style={{ color: COLORS.muted, textAlign: 'center', padding: 32, fontSize: 13 }}>Select a player above to edit their stats.</div>}
           </div>
         )}
       </div>
@@ -253,7 +235,6 @@ function HudlImportModal({ entry, team, season, opponents, onClose, onImported }
     if (!file) return;
     setStep('parsing');
     setError(null);
-
     try {
       const base64Data = await new Promise((res, rej) => {
         const r = new FileReader();
@@ -263,105 +244,31 @@ function HudlImportModal({ entry, team, season, opponents, onClose, onImported }
       });
 
       const prompt = `You are parsing a Hudl basketball box score PDF. Extract player stats for BOTH teams.
-
 Return ONLY valid JSON with this exact structure, no markdown, no explanation:
-{
-  "ourScore": <number>,
-  "theirScore": <number>,
-  "ourPlayers": [
-    {
-      "number": "<jersey number digits only, no #>",
-      "name": "<player name>",
-      "pts": <number>,
-      "fgm": <number>,
-      "fga": <number>,
-      "fg3m": <number>,
-      "fg3a": <number>,
-      "ftm": <number>,
-      "fta": <number>,
-      "oreb": <number>,
-      "dreb": <number>,
-      "ast": <number>,
-      "defl": <number>,
-      "stl": <number>,
-      "blk": <number>,
-      "to": <number>,
-      "pf": <number>,
-      "chg": <number>,
-      "mins": <number>
-    }
-  ],
-  "oppPlayers": [
-    {
-      "pts": <number>,
-      "fgm": <number>,
-      "fga": <number>,
-      "fg3m": <number>,
-      "fg3a": <number>,
-      "ftm": <number>,
-      "fta": <number>,
-      "oreb": <number>,
-      "dreb": <number>,
-      "ast": <number>,
-      "defl": <number>,
-      "stl": <number>,
-      "blk": <number>,
-      "to": <number>,
-      "pf": <number>,
-      "chg": <number>
-    }
-  ]
-}
-
-Rules:
-- ourPlayers = the first team listed (BCHS or the home/away team that is OUR team)
-- oppPlayers = all individual players from the OPPONENT team (we will sum them)
-- Only include players with minutes > 0 or any non-zero stats
-- jersey number = digits only, no # symbol
-- fgm = field goals MADE, fga = field goals ATTEMPTED (total attempts, not misses)
-- fg3m = three pointers MADE, fg3a = three pointers ATTEMPTED (total attempts, not misses)
-- ftm = free throws MADE, fta = free throws ATTEMPTED (total attempts, not misses)
-- mins = minutes played as a decimal number
-- Missing or blank stats = 0`;
+{"ourScore":<number>,"theirScore":<number>,"ourPlayers":[{"number":"<digits>","name":"<name>","pts":<n>,"fgm":<n>,"fga":<n>,"fg3m":<n>,"fg3a":<n>,"ftm":<n>,"fta":<n>,"oreb":<n>,"dreb":<n>,"ast":<n>,"defl":<n>,"stl":<n>,"blk":<n>,"to":<n>,"pf":<n>,"chg":<n>,"mins":<n>}],"oppPlayers":[{"pts":<n>,"fgm":<n>,"fga":<n>,"fg3m":<n>,"fg3a":<n>,"ftm":<n>,"fta":<n>,"oreb":<n>,"dreb":<n>,"ast":<n>,"defl":<n>,"stl":<n>,"blk":<n>,"to":<n>,"pf":<n>,"chg":<n>}]}
+Rules: ourPlayers = first team, oppPlayers = opponent individuals (we sum them), digits only for number, fga/fg3a/fta = TOTAL attempts not misses, missing = 0`;
 
       const response = await fetch('/api/parse-hudl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
-              { type: 'text', text: prompt },
-            ],
-          }],
+          model: 'claude-sonnet-4-6', max_tokens: 4000,
+          messages: [{ role: 'user', content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } },
+            { type: 'text', text: prompt },
+          ]}],
         }),
       });
 
       const data = await response.json();
-      if (!data.content || !data.content.length) {
-        throw new Error('No content in response: ' + JSON.stringify(data));
-      }
-
+      if (!data.content || !data.content.length) throw new Error('No content in response: ' + JSON.stringify(data));
       const text = data.content.map(i => i.text || '').join('').trim();
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(clean);
+      const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
       setParsedData(parsed);
       setScores({ ours: String(parsed.ourScore || ''), theirs: String(parsed.theirScore || '') });
-
       const matched = (parsed.ourPlayers || []).map(hp => {
-        const rosterPlayer = players.find(p =>
-          String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim()
-        );
-        return {
-          hudlName: hp.name,
-          hudlNumber: hp.number,
-          rosterPlayerId: rosterPlayer?.id || null,
-          hudlStats: hp,
-          include: true,
-        };
+        const rosterPlayer = players.find(p => String(p.number || '').replace('#', '').trim() === String(hp.number || '').replace('#', '').trim());
+        return { hudlName: hp.name, hudlNumber: hp.number, rosterPlayerId: rosterPlayer?.id || null, hudlStats: hp, include: true };
       });
       setMatchedStats(matched);
       setStep('preview');
@@ -371,37 +278,24 @@ Rules:
     }
   };
 
-  const setRosterMatch = (idx, playerId) => {
-    setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
-  };
-
-  const toggleInclude = (idx) => {
-    setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, include: !m.include } : m));
-  };
+  const setRosterMatch = (idx, playerId) => setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, rosterPlayerId: playerId || null } : m));
+  const toggleInclude = (idx) => setMatchedStats(prev => prev.map((m, i) => i === idx ? { ...m, include: !m.include } : m));
 
   const handleImport = async () => {
     setStep('importing');
     try {
       const playerStats = {};
-
       matchedStats.forEach(m => {
         if (!m.include || !m.rosterPlayerId) return;
         const s = m.hudlStats;
-
         const fg2m = Math.max(0, (s.fgm || 0) - (s.fg3m || 0));
         const fg2a_total = Math.max(0, (s.fga || 0) - (s.fg3a || 0));
-        const fg2_misses = Math.max(0, fg2a_total - fg2m);
-        const fg3_misses = Math.max(0, (s.fg3a || 0) - (s.fg3m || 0));
-        const ft_misses = Math.max(0, (s.fta || 0) - (s.ftm || 0));
-
         playerStats[m.rosterPlayerId] = {
-          '2PM': fg2m, '2PA': fg2_misses,
-          '3PM': s.fg3m || 0, '3PA': fg3_misses,
-          'FTM': s.ftm || 0, 'FTA': ft_misses,
-          'O': s.oreb || 0, 'D': s.dreb || 0,
-          'AST': s.ast || 0, 'DF': s.defl || 0,
-          'STL': s.stl || 0, 'BS': s.blk || 0,
-          'TO': s.to || 0, 'PF': s.pf || 0,
+          '2PM': fg2m, '2PA': Math.max(0, fg2a_total - fg2m),
+          '3PM': s.fg3m || 0, '3PA': Math.max(0, (s.fg3a || 0) - (s.fg3m || 0)),
+          'FTM': s.ftm || 0, 'FTA': Math.max(0, (s.fta || 0) - (s.ftm || 0)),
+          'O': s.oreb || 0, 'D': s.dreb || 0, 'AST': s.ast || 0, 'DF': s.defl || 0,
+          'STL': s.stl || 0, 'BS': s.blk || 0, 'TO': s.to || 0, 'PF': s.pf || 0,
           'CHG_taken': s.chg || 0,
         };
       });
@@ -420,25 +314,18 @@ Rules:
         acc.oreb += s.oreb || 0; acc.dreb += s.dreb || 0;
         acc.ast += s.ast || 0; acc.defl += s.defl || 0;
         acc.stl += s.stl || 0; acc.blk += s.blk || 0;
-        acc.to += s.to || 0; acc.pf += s.pf || 0;
-        acc.chg += s.chg || 0;
+        acc.to += s.to || 0; acc.pf += s.pf || 0; acc.chg += s.chg || 0;
         return acc;
-      }, { fgm:0, fga:0, fg3m:0, fg3a:0, ftm:0, fta:0, oreb:0, dreb:0, ast:0, defl:0, stl:0, blk:0, to:0, pf:0, chg:0 });
+      }, { fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,oreb:0,dreb:0,ast:0,defl:0,stl:0,blk:0,to:0,pf:0,chg:0 });
 
       const opp2m = Math.max(0, oppTotals.fgm - oppTotals.fg3m);
       const opp2a_total = Math.max(0, oppTotals.fga - oppTotals.fg3a);
-      const opp2_misses = Math.max(0, opp2a_total - opp2m);
-      const opp3_misses = Math.max(0, oppTotals.fg3a - oppTotals.fg3m);
-      const oppft_misses = Math.max(0, oppTotals.fta - oppTotals.ftm);
-
       playerStats['OPP'] = {
-        '2PM': opp2m, '2PA': opp2_misses,
-        '3PM': oppTotals.fg3m, '3PA': opp3_misses,
-        'FTM': oppTotals.ftm, 'FTA': oppft_misses,
-        'O': oppTotals.oreb, 'D': oppTotals.dreb,
-        'AST': oppTotals.ast, 'DF': oppTotals.defl,
-        'STL': oppTotals.stl, 'BS': oppTotals.blk,
-        'TO': oppTotals.to, 'PF': oppTotals.pf,
+        '2PM': opp2m, '2PA': Math.max(0, opp2a_total - opp2m),
+        '3PM': oppTotals.fg3m, '3PA': Math.max(0, oppTotals.fg3a - oppTotals.fg3m),
+        'FTM': oppTotals.ftm, 'FTA': Math.max(0, oppTotals.fta - oppTotals.ftm),
+        'O': oppTotals.oreb, 'D': oppTotals.dreb, 'AST': oppTotals.ast, 'DF': oppTotals.defl,
+        'STL': oppTotals.stl, 'BS': oppTotals.blk, 'TO': oppTotals.to, 'PF': oppTotals.pf,
         'CHG_taken': oppTotals.chg,
       };
 
@@ -492,11 +379,7 @@ Rules:
             <div style={{ color: COLORS.muted, fontSize: 12, textAlign: 'center', maxWidth: 280, lineHeight: 1.5 }}>
               Export the Box Score Report PDF from Hudl and upload it here. Claude will extract the stats and you'll match them to your roster.
             </div>
-            {error && (
-              <div style={{ color: COLORS.red, fontSize: 13, textAlign: 'center', background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', maxWidth: 300 }}>
-                {error}
-              </div>
-            )}
+            {error && <div style={{ color: COLORS.red, fontSize: 13, textAlign: 'center', background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', maxWidth: 300 }}>{error}</div>}
             <label style={{ padding: '14px 28px', background: COLORS.gold, borderRadius: 10, color: COLORS.textDark, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
               Choose PDF
               <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={handlePdfUpload} />
@@ -514,9 +397,7 @@ Rules:
 
         {step === 'preview' && parsedData && (
           <div>
-            <div style={{ fontSize: 13, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
-              Review & Map Players
-            </div>
+            <div style={{ fontSize: 13, color: COLORS.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Review & Map Players</div>
             <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 12, marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: 10, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Our Score</div>
@@ -536,15 +417,12 @@ Rules:
                 acc.pts += s.pts || 0; acc.fgm += s.fgm || 0; acc.fga += s.fga || 0;
                 acc.fg3m += s.fg3m || 0; acc.fg3a += s.fg3a || 0; acc.ftm += s.ftm || 0;
                 acc.fta += s.fta || 0; acc.oreb += s.oreb || 0; acc.dreb += s.dreb || 0;
-                acc.ast += s.ast || 0; acc.stl += s.stl || 0; acc.blk += s.blk || 0;
-                acc.to += s.to || 0;
+                acc.ast += s.ast || 0; acc.stl += s.stl || 0; acc.blk += s.blk || 0; acc.to += s.to || 0;
                 return acc;
-              }, { pts:0, fgm:0, fga:0, fg3m:0, fg3a:0, ftm:0, fta:0, oreb:0, dreb:0, ast:0, stl:0, blk:0, to:0 });
+              }, { pts:0,fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,oreb:0,dreb:0,ast:0,stl:0,blk:0,to:0 });
               return (
                 <div style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, padding: '10px 12px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 11, color: COLORS.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                    {oppName} — Team Totals (auto-summed)
-                  </div>
+                  <div style={{ fontSize: 11, color: COLORS.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{oppName} — Team Totals (auto-summed)</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, color: COLORS.muted }}>
                     <span>PTS <b style={{ color: COLORS.text }}>{totals.pts}</b></span>
                     <span>FG <b style={{ color: COLORS.text }}>{totals.fgm}/{totals.fga}</b></span>
@@ -561,27 +439,20 @@ Rules:
               );
             })()}
 
-            <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 8 }}>
-              Map each Hudl player to your roster. Unmapped players won't be imported.
-            </div>
+            <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 8 }}>Map each Hudl player to your roster. Unmapped players won't be imported.</div>
 
             {matchedStats.map((m, i) => {
               const s = m.hudlStats;
               const fg2m = Math.max(0, (s.fgm || 0) - (s.fg3m || 0));
               const fg2a = Math.max(0, (s.fga || 0) - (s.fg3a || 0));
               return (
-                <div key={i} style={{
-                  background: m.include ? (m.rosterPlayerId ? 'rgba(200,168,75,0.08)' : 'rgba(255,255,255,0.03)') : 'rgba(0,0,0,0.2)',
-                  border: `1px solid ${m.include && m.rosterPlayerId ? COLORS.gold : COLORS.border}`,
-                  borderRadius: 10, padding: '10px 12px', marginBottom: 8,
-                }}>
+                <div key={i} style={{ background: m.include ? (m.rosterPlayerId ? 'rgba(200,168,75,0.08)' : 'rgba(255,255,255,0.03)') : 'rgba(0,0,0,0.2)', border: `1px solid ${m.include && m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <div style={{ fontWeight: 900, color: COLORS.text, fontSize: 13 }}>
                       #{m.hudlNumber} {m.hudlName}
                       {s.mins ? <span style={{ fontSize: 10, color: COLORS.muted, fontWeight: 400, marginLeft: 6 }}>{s.mins} min</span> : null}
                     </div>
-                    <button onClick={() => toggleInclude(i)}
-                      style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, cursor: 'pointer', background: m.include ? COLORS.redBg : 'rgba(255,255,255,0.07)', border: `1px solid ${m.include ? COLORS.red : COLORS.border}`, color: m.include ? COLORS.red : COLORS.muted }}>
+                    <button onClick={() => toggleInclude(i)} style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, cursor: 'pointer', background: m.include ? COLORS.redBg : 'rgba(255,255,255,0.07)', border: `1px solid ${m.include ? COLORS.red : COLORS.border}`, color: m.include ? COLORS.red : COLORS.muted }}>
                       {m.include ? 'Skip' : 'Include'}
                     </button>
                   </div>
@@ -589,9 +460,7 @@ Rules:
                     <select value={m.rosterPlayerId || ''} onChange={e => setRosterMatch(i, e.target.value)}
                       style={{ width: '100%', padding: '7px 8px', background: COLORS.navyDark, border: `1px solid ${m.rosterPlayerId ? COLORS.gold : COLORS.border}`, borderRadius: 7, color: m.rosterPlayerId ? COLORS.gold : COLORS.muted, fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}>
                       <option value="">— Select roster player —</option>
-                      {players.map(p => (
-                        <option key={p.id} value={p.id}>#{p.number || '—'} {p.name}</option>
-                      ))}
+                      {players.map(p => <option key={p.id} value={p.id}>#{p.number || '—'} {p.name}</option>)}
                     </select>
                   )}
                   {m.include && (
@@ -624,11 +493,7 @@ Rules:
               </div>
             </div>
 
-            {error && (
-              <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>
-                {error}
-              </div>
-            )}
+            {error && <div style={{ color: COLORS.red, fontSize: 13, background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>{error}</div>}
 
             <button onClick={handleImport} disabled={includedCount === 0}
               style={{ width: '100%', padding: 14, background: includedCount > 0 ? COLORS.gold : COLORS.navyDark, border: 'none', borderRadius: 10, color: includedCount > 0 ? COLORS.textDark : COLORS.muted, fontWeight: 800, fontSize: 15, cursor: includedCount > 0 ? 'pointer' : 'default' }}>
