@@ -252,6 +252,10 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory || []);
   const [statDefsReady, setStatDefsReady] = useState(false);
 
+  // ── Post-shot prompts ─────────────────────────────────────────────────────
+  const [assistPrompt, setAssistPrompt] = useState(null); // { shooterId }
+  const [reboundPrompt, setReboundPrompt] = useState(null); // true when active
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -277,17 +281,17 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const statsFor = (id) => stats[id] || emptyPlayerStats();
 
-  const commitStatOnly = (playerId, key, loggedShot, period) => {
+  const commitStat = (playerId, key, loggedShot) => {
     setStats(prev => {
       const cur = prev[playerId] || emptyPlayerStats();
       return { ...prev, [playerId]: { ...cur, [key]: (cur[key] || 0) + 1 } };
     });
-    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, period }]);
+    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, period: currentPeriod }]);
   };
 
   const tagStat = (playerId, key) => {
     if (!playerId) return;
-    commitStatOnly(playerId, key, false, currentPeriod);
+    commitStat(playerId, key, false);
     setSelectedPlayer(null);
   };
 
@@ -300,10 +304,33 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (!pendingShot || !selectedPlayer) return;
     const { x, y, is2pt } = pendingShot;
     const key = is2pt ? (make ? '2PM' : '2PA') : (make ? '3PM' : '3PA');
-    commitStatOnly(selectedPlayer, key, true, currentPeriod);
+    commitStat(selectedPlayer, key, true);
     setShotLog(prev => [...prev, { playerId: selectedPlayer, statKey: key, x, y, make, period: currentPeriod }]);
     setPendingShot(null);
+    if (make) {
+      // Prompt for assist
+      setAssistPrompt({ shooterId: selectedPlayer });
+    } else {
+      // Prompt for rebound
+      setReboundPrompt(true);
+    }
     setSelectedPlayer(null);
+  };
+
+  const handleAssist = (assistPlayerId) => {
+    if (assistPlayerId) commitStat(assistPlayerId, 'AST', false);
+    setAssistPrompt(null);
+  };
+
+  const handleRebound = (reboundPlayerId) => {
+    if (reboundPlayerId === 'OPP') {
+      commitStat('OPP', 'D', false);
+    } else if (reboundPlayerId === 'TEAM') {
+      // team rebound — no stat
+    } else if (reboundPlayerId) {
+      commitStat(reboundPlayerId, 'O', false);
+    }
+    setReboundPrompt(null);
   };
 
   const undoLastAction = () => {
@@ -419,9 +446,58 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const ourDisplayName = teamName || 'TM';
   const oppDisplayName = opponent?.name || game.meta?.opponentName || 'OPP';
   const oppAbbr = opponent?.abbr || oppDisplayName.slice(0, 4).toUpperCase();
+  const courtPlayers = players.filter(p => onCourt.includes(p.id));
 
   return (
     <div>
+      {/* ── Assist Prompt ── */}
+      {assistPrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: COLORS.navyMid, border: `2px solid ${COLORS.gold}`, borderRadius: 14, padding: 20, width: '100%', maxWidth: 340 }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.gold, textAlign: 'center', marginBottom: 4, letterSpacing: 1 }}>ASSIST?</div>
+            <div style={{ fontSize: 12, color: COLORS.muted, textAlign: 'center', marginBottom: 16 }}>Who passed the assist?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {courtPlayers.filter(p => p.id !== assistPrompt.shooterId).map(p => (
+                <button key={p.id} onClick={() => handleAssist(p.id)}
+                  style={{ padding: '12px 16px', background: COLORS.statPosBg, border: `2px solid ${COLORS.statPosBorder}`, borderRadius: 10, color: COLORS.statPosText, fontWeight: 800, fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
+                  #{p.number || '—'} {p.name}
+                </button>
+              ))}
+              <button onClick={() => handleAssist(null)}
+                style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${COLORS.border}`, borderRadius: 10, color: COLORS.muted, fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'center' }}>
+                No Assist
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rebound Prompt ── */}
+      {reboundPrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: COLORS.navyMid, border: `2px solid ${COLORS.gold}`, borderRadius: 14, padding: 20, width: '100%', maxWidth: 340 }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: COLORS.gold, textAlign: 'center', marginBottom: 4, letterSpacing: 1 }}>REBOUND</div>
+            <div style={{ fontSize: 12, color: COLORS.muted, textAlign: 'center', marginBottom: 16 }}>Who grabbed it?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {courtPlayers.map(p => (
+                <button key={p.id} onClick={() => handleRebound(p.id)}
+                  style={{ padding: '12px 16px', background: COLORS.statPosBg, border: `2px solid ${COLORS.statPosBorder}`, borderRadius: 10, color: COLORS.statPosText, fontWeight: 800, fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
+                  #{p.number || '—'} {p.name}
+                </button>
+              ))}
+              <button onClick={() => handleRebound('TEAM')}
+                style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${COLORS.border}`, borderRadius: 10, color: COLORS.muted, fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'center' }}>
+                Team REB
+              </button>
+              <button onClick={() => handleRebound('OPP')}
+                style={{ padding: '12px 16px', background: COLORS.statNegBg, border: `2px solid ${COLORS.statNegBorder}`, borderRadius: 10, color: COLORS.statNegText, fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'center' }}>
+                OPP REB
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingClock && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 20, width: '100%', maxWidth: 320, maxHeight: '85vh', overflowY: 'auto' }}>
@@ -476,7 +552,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'stretch' }}>
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', maxHeight: 260 }}>
-          {players.filter(p => onCourt.includes(p.id)).map(p => {
+          {courtPlayers.map(p => {
             const sel = selectedPlayer === p.id;
             const eff = calcEff(statsFor(p.id));
             return (
@@ -581,7 +657,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <div style={{ fontWeight: 700, marginBottom: 10 }}>Substitutions</div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Sub OUT ({subOutIds.length} selected):</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {players.filter(p => onCourt.includes(p.id)).map(p => <button key={p.id} onClick={() => toggleSubOut(p.id)} style={{ padding: '8px 10px', borderRadius: 8, border: subOutIds.includes(p.id) ? `2px solid ${COLORS.red}` : `1px solid ${COLORS.border}`, background: subOutIds.includes(p.id) ? COLORS.redBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>#{p.number || '—'} {p.name}</button>)}
+              {courtPlayers.map(p => <button key={p.id} onClick={() => toggleSubOut(p.id)} style={{ padding: '8px 10px', borderRadius: 8, border: subOutIds.includes(p.id) ? `2px solid ${COLORS.red}` : `1px solid ${COLORS.border}`, background: subOutIds.includes(p.id) ? COLORS.redBg : COLORS.navyDark, color: COLORS.text, cursor: 'pointer' }}>#{p.number || '—'} {p.name}</button>)}
             </div>
             <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 6 }}>Sub IN ({subInIds.length} selected):</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
@@ -732,36 +808,4 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
           <button onClick={startGame} style={{ padding: '9px 18px', background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start Game →</button>
         </div>
       </div>
-      <h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {games.map(g => {
-          const opponentRecord = opponents.find(o => o.name === g.opponents?.name);
-          return (
-            <div key={g.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 8, background: COLORS.navyMid }}>
-              <MiniGameScoreboard game={g} opponentRecord={opponentRecord} COLORS={COLORS} logo={logo} teamName={teamName} />
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                {!g.is_final ? (
-                  <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: COLORS.gold, border: 'none', color: COLORS.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
-                ) : (
-                  <>
-                    <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>View / Edit</button>
-                    <button onClick={() => setHudlCompareGame(g)} style={{ padding: '8px 12px', background: 'rgba(255,106,0,0.12)', border: '1px solid #ff6a00', color: '#ff6a00', borderRadius: 6, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>H</button>
-                  </>
-                )}
-                {confirmingDeleteId === g.id ? (
-                  <>
-                    <button onClick={() => deleteGame(g.id)} style={{ padding: '8px 10px', background: COLORS.red, color: COLORS.text, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Confirm</button>
-                    <button onClick={() => setConfirmingDeleteId(null)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
-                  </>
-                ) : (
-                  <button onClick={() => setConfirmingDeleteId(g.id)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.red, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Delete</button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {games.length === 0 && <p style={{ color: COLORS.muted }}>No games saved yet.</p>}
-    </div>
-  );
-}
+      <h4 style={{ color: COLORS
