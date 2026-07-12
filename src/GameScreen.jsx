@@ -808,8 +808,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
           <button onClick={startGame} style={{ padding: '9px 18px', background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start Game →</button>
         </div>
       </div>
-      <h4 style={{ color: COLORS
-<h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
+    <h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {games.map(g => {
           const opponentRecord = opponents.find(o => o.name === g.opponents?.name);
