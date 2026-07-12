@@ -644,14 +644,25 @@ function ScheduleScreen({ season, team, role, onBackToSeasons }) {
         />
       )}
 
-      {editingGame && (
-        <GameEditorModal
-          game={editingGame}
-          team={team}
-          onClose={() => setEditingGame(null)}
-          onSaved={() => { setEditingGame(null); loadGames(); }}
-        />
-      )}
+{editingGame && (
+  <GameEditorModal
+    game={editingGame}
+    team={team}
+    onClose={() => setEditingGame(null)}
+    onSaved={async () => {
+      setEditingGame(null);
+      const { data } = await supabase.from('games').select('*, opponents(name)').eq('season_id', season.id);
+      if (data) {
+        setGames(data);
+        if (viewingGame) {
+          const refreshed = data.find(g => g.id === viewingGame.id);
+          if (refreshed) setViewingGame(refreshed);
+        }
+      }
+    }}
+  />
+)}
+
 
       {canEdit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: `1px solid ${COLORS.border}`, background: COLORS.navyMid, borderRadius: 8, padding: 10 }}>
