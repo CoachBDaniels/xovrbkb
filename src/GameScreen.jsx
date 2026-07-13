@@ -13,35 +13,35 @@ function isInsideArc(x, y) {
 
 function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, oppPrimary, oppSecondary, logo, oppLogo, periodLabel, currentPeriod, gameFormat, clockMinutes, clockSeconds, onClockClick, isFinal }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 52, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
       {/* Our side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 10px', background: `linear-gradient(90deg, ${ourPrimary} 0%, ${ourPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 8 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(90deg, ${ourPrimary} 0%, ${ourPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
         {logo
-          ? <img src={logo} alt="" style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-          : <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
-        <span style={{ fontSize: 22, fontWeight: 900, color: '#e7b977', letterSpacing: 2, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ourAbbr}</span>
-        <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0, marginRight: 8 }}>{ourScore}</span>
+          ? <img src={logo} alt="" style={{ width: 34, height: 34, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+          : <div style={{ width: 34, height: 34, borderRadius: 5, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+        <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>{ourAbbr.slice(0,4)}</span>
+        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{ourScore}</span>
       </div>
       {/* Center */}
-      <div style={{ width: 80, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+      <div style={{ width: 76, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
         {isFinal ? (
           <div style={{ fontSize: 10, fontWeight: 800, color: '#ff3b30', letterSpacing: 1.5 }}>FINAL</div>
         ) : (
           <>
             <div style={{ fontSize: 9, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>{periodLabel.slice(0,1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}</div>
-            <button onClick={onClockClick} style={{ fontSize: 18, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
+            <button onClick={onClockClick} style={{ fontSize: 19, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
               {clockMinutes}:{String(clockSeconds).padStart(2,'0')}
             </button>
           </>
         )}
       </div>
       {/* Opp side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 10px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 8, justifyContent: 'flex-end' }}>
-        <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0, marginLeft: 8 }}>{oppScore}</span>
-        <span style={{ fontSize: 22, fontWeight: 900, color: oppSecondary, letterSpacing: 2, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'right' }}>{oppAbbr}</span>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
+        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: oppSecondary, letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr.slice(0,4)}</span>
         {oppLogo
-          ? <img src={oppLogo} alt="" style={{ width: 38, height: 38, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-          : <div style={{ width: 38, height: 38, borderRadius: 6, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
+          ? <img src={oppLogo} alt="" style={{ width: 34, height: 34, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+          : <div style={{ width: 34, height: 34, borderRadius: 5, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
       </div>
     </div>
   );
@@ -54,8 +54,8 @@ function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName, team
   const ourScore = game.meta?.ourScore ?? 0;
   const theirScore = game.meta?.theirScore ?? 0;
   const isFinal = !!game.is_final;
-  const ourAbbr = teamAbbr || (teamName || 'TM').slice(0,3).toUpperCase();
-  const oppAbbr = opponentRecord?.abbr || oppName.slice(0,3).toUpperCase();
+  const ourAbbr = teamAbbr || (teamName || 'TM').slice(0,4).toUpperCase();
+  const oppAbbr = opponentRecord?.abbr || oppName.slice(0,4).toUpperCase();
   return (
     <WorldCupScoreboard
       ourScore={ourScore} oppScore={theirScore}
@@ -468,7 +468,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const ourDisplayName = teamName || 'TM';
   const oppDisplayName = opponent?.name || game.meta?.opponentName || 'OPP';
-  const ourAbbr = teamAbbr || (teamName || 'BWD').slice(0,3).toUpperCase();
+  const ourAbbr = teamAbbr || (teamName || 'BWD').slice(0,4).toUpperCase();
   const oppAbbr = opponent?.abbr || oppDisplayName.slice(0,4).toUpperCase();
   const courtPlayers = players.filter(p => onCourt.includes(p.id));
 
