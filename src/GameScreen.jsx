@@ -249,7 +249,6 @@ function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, 
             </button>
           </>
         )}
-      </div>
 
       {/* Opp side */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 10px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 8, justifyContent: 'flex-end' }}>
