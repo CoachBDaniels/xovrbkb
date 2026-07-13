@@ -94,16 +94,37 @@ function GameEditorModal({ game, team, onClose, onSaved }) {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const updateData = { player_stats: stats, updated_at: new Date().toISOString() };
-      if (isEventMode) updateData.meta = { ...game.meta, actionHistory };
-      const { error } = await supabase.from('games').update(updateData).eq('id', game.id);
-      if (error) throw new Error(error.message);
-      onSaved(); onClose();
-    } catch (err) { alert('Save failed: ' + err.message); }
-    finally { setSaving(false); }
-  };
+  setSaving(true);
+  try {
+    // Recalculate scores from edited stats
+    const ourScore = players.reduce((sum, p) => {
+      const s = stats[p.id] || {};
+      return sum + ((s['2PM'] || 0) * 2) + ((s['3PM'] || 0) * 3) + (s['FTM'] || 0);
+    }, 0);
+    const oppStats = stats['OPP'] || {};
+    const theirScore = ((oppStats['2PM'] || 0) * 2) + ((oppStats['3PM'] || 0) * 3) + (oppStats['FTM'] || 0);
+
+    const updateData = {
+      player_stats: stats,
+      meta: {
+        ...game.meta,
+        ourScore: String(ourScore),
+        theirScore: String(theirScore),
+        ...(isEventMode ? { actionHistory } : {}),
+      },
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('games').update(updateData).eq('id', game.id);
+    if (error) throw new Error(error.message);
+    onSaved();
+    onClose();
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   const oppName = game.meta?.opponentName || game.opponents?.name || 'OPP';
 
