@@ -224,44 +224,47 @@ Rules: only non-zero stats players, jersey number digits only, fgm/fga = TOTAL i
 }
 
 function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, oppPrimary, oppSecondary, logo, oppLogo, periodLabel, currentPeriod, gameFormat, clockMinutes, clockSeconds, onClockClick, isFinal }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
-      {/* Our side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: `linear-gradient(90deg, ${ourPrimary} 50%, #111 100%)`, height: '100%', minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
-          {logo
-            ? <img src={logo} alt="" style={{ width: 32, height: 32, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-            : <div style={{ width: 32, height: 32, borderRadius: 5, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
-          <span style={{ fontSize: 16, fontWeight: 900, color: '#e7b977', letterSpacing: 1.5, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ourAbbr}</span>
-        </div>
-        <span style={{ fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</span>
-      </div>
-      {/* Center */}
-      <div style={{ width: 88, flexShrink: 0, background: '#0d0d0d', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderLeft: '1px solid #2a2a2a', borderRight: '1px solid #2a2a2a' }}>
-        <img src={XOVR_LOGO} alt="" style={{ width: 24, height: 24, objectFit: 'contain', opacity: 0.9 }} />
-        {isFinal ? (
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1.5 }}>FINAL</div>
-        ) : (
-          <>
-            <div style={{ fontSize: 9, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>{periodLabel.slice(0,1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}</div>
-            <button onClick={onClockClick} style={{ fontSize: 14, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 1.5, padding: 0, lineHeight: 1, textShadow: '0 0 8px rgba(255,59,48,0.9)' }}>
-              {clockMinutes}:{String(clockSeconds).padStart(2,'0')}
-            </button>
-          </>
-        )}
-      </div>
-      {/* Opp side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: `linear-gradient(270deg, ${oppPrimary} 50%, #111 100%)`, height: '100%', minWidth: 0 }}>
-        <span style={{ fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1, justifyContent: 'flex-end' }}>
-          <span style={{ fontSize: 16, fontWeight: 900, color: oppSecondary, letterSpacing: 1.5, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{oppAbbr}</span>
-          {oppLogo
-            ? <img src={oppLogo} alt="" style={{ width: 32, height: 32, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-            : <div style={{ width: 32, height: 32, borderRadius: 5, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
-        </div>
-      </div>
-    </div>
-  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 52, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+      {/* Our side */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: `linear-gradient(90deg, ${ourPrimary} 50%, #111 100%)`, height: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1 }}>
+          {logo
+            ? <img src={logo} alt="" style={{ width: 30, height: 30, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+            : <div style={{ width: 30, height: 30, borderRadius: 5, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+          <span style={{ fontSize: 15, fontWeight: 900, color: '#e7b977', letterSpacing: 1.5, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ourAbbr}</span>
+        </div>
+        <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{ourScore}</span>
+      </div>
+
+      {/* Center — clock only, no logo */}
+      <div style={{ width: 80, flexShrink: 0, background: '#0d0d0d', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, borderLeft: '1px solid #2a2a2a', borderRight: '1px solid #2a2a2a' }}>
+        {isFinal ? (
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#ff3b30', letterSpacing: 1.5 }}>FINAL</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 9, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>
+              {periodLabel.slice(0,1).toUpperCase()}{currentPeriod}{currentPeriod > gameFormat.periods ? ' OT' : ''}
+            </div>
+            <button onClick={onClockClick} style={{ fontSize: 18, fontWeight: 700, color: '#ff3b30', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Courier New', monospace", letterSpacing: 2, padding: 0, lineHeight: 1.1, textShadow: '0 0 6px rgba(255,59,48,0.85)' }}>
+              {clockMinutes}:{String(clockSeconds).padStart(2,'0')}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Opp side */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', background: `linear-gradient(270deg, ${oppPrimary} 50%, #111 100%)`, height: '100%', minWidth: 0 }}>
+        <span style={{ fontSize: 30, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flex: 1, justifyContent: 'flex-end' }}>
+          <span style={{ fontSize: 15, fontWeight: 900, color: oppSecondary, letterSpacing: 1.5, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{oppAbbr}</span>
+          {oppLogo
+            ? <img src={oppLogo} alt="" style={{ width: 30, height: 30, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+            : <div style={{ width: 30, height: 30, borderRadius: 5, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName, teamAbbr }) {
