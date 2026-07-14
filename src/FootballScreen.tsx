@@ -133,15 +133,32 @@ function FBRosterScreen({ team, role }) {
   const [editingId, setEditingId] = useState(null);
   const canEdit = role === 'head_coach' || role === 'assistant';
 
-  const load = () => supabase.from('players').select('*').eq('team_id', team.id).order('created_at').then(({ data }) => { if (data) setPlayers(data); });
+  const load = () => {
+    supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
+      .then(({ data }) => { if (data) setPlayers(data); });
+  };
   useEffect(() => { load(); }, [team.id]);
 
   const add = async () => {
     if (!newName.trim()) return;
-    await supabase.from('players').insert({ team_id: team.id, name: newName.trim(), number: newNumber.trim() || null, position: newPos });
-    setNewName(''); setNewNumber(''); load();
+    const { error } = await supabase.from('players').insert({
+      team_id: team.id,
+      name: newName.trim(),
+      number: newNumber.trim() || null,
+      position: newPos,
+    });
+    if (error) { alert('Error adding player: ' + error.message); return; }
+    setNewName('');
+    setNewNumber('');
+    setNewPos('QB');
+    load();
   };
-  const remove = async (id) => { await supabase.from('players').delete().eq('id', id); load(); };
+
+  const remove = async (id) => {
+    await supabase.from('players').delete().eq('id', id);
+    load();
+  };
+
   const updateField = async (id, field, value) => {
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
     await supabase.from('players').update({ [field]: value }).eq('id', id);
@@ -150,13 +167,13 @@ function FBRosterScreen({ team, role }) {
   return (
     <div>
       {canEdit && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input placeholder="#" value={newNumber} onChange={e => setNewNumber(e.target.value)} style={{ width: 50, padding: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
-          <input placeholder="Player name" value={newName} onChange={e => setNewName(e.target.value)} style={{ flex: 1, minWidth: 120, padding: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
-          <select value={newPos} onChange={e => setNewPos(e.target.value)} style={{ padding: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+          <input placeholder="#" value={newNumber} onChange={e => setNewNumber(e.target.value)} style={{ width: 56, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
+          <input placeholder="Player name" value={newName} onChange={e => setNewName(e.target.value)} style={{ flex: 1, minWidth: 120, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
+          <select value={newPos} onChange={e => setNewPos(e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }}>
             {POSITION_GROUPS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <button onClick={add} style={{ padding: '8px 14px', background: C.gold, color: C.textDark, border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
+          <button onClick={add} style={{ padding: '8px 14px', background: C.gold, color: C.textDark, border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer', width: '100%' }}>+ Add Player</button>
         </div>
       )}
       {players.map(p => (
@@ -164,7 +181,7 @@ function FBRosterScreen({ team, role }) {
           {editingId === p.id ? (
             <div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input value={p.number || ''} onChange={e => updateField(p.id, 'number', e.target.value)} placeholder="#" style={{ width: 50, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, textAlign: 'center' }} />
+                <input value={p.number || ''} onChange={e => updateField(p.id, 'number', e.target.value)} placeholder="#" style={{ width: 56, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, textAlign: 'center' }} />
                 <input value={p.name || ''} onChange={e => updateField(p.id, 'name', e.target.value)} style={{ flex: 1, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
                 <select value={p.position || 'QB'} onChange={e => updateField(p.id, 'position', e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }}>
                   {POSITION_GROUPS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
@@ -185,7 +202,7 @@ function FBRosterScreen({ team, role }) {
           )}
         </div>
       ))}
-      {players.length === 0 && <p style={{ color: C.muted }}>No players yet.</p>}
+      {players.length === 0 && <p style={{ color: C.muted }}>No players yet. Add them above.</p>}
     </div>
   );
 }
@@ -214,7 +231,7 @@ function FBOpponentsScreen({ team, role }) {
   return (
     <div>
       {canEdit && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           <input placeholder="Team name" value={newName} onChange={e => setNewName(e.target.value)} style={{ flex: 1, padding: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
           <input placeholder="Abbr" value={newAbbr} onChange={e => setNewAbbr(e.target.value)} style={{ width: 70, padding: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
           <button onClick={add} style={{ padding: '8px 14px', background: C.gold, color: C.textDark, border: 'none', borderRadius: 7, fontWeight: 700, cursor: 'pointer' }}>+ Add</button>
@@ -293,6 +310,7 @@ function FBBoxScore({ team, game, players, onClose }) {
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{game.meta?.date || ''} · {plays.length} plays</div>
         </div>
         <div style={{ height: 3, background: '#c8a84b', marginBottom: 16 }} />
+        {playerRows.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>No stats tagged yet.</div>}
         {Object.entries(groupedByPos).map(([pos, rows]) => (
           <div key={pos} style={{ marginBottom: 20 }}>
             <div style={{ background: '#1a3a6b', color: '#c8a84b', fontWeight: 900, fontSize: 11, padding: '4px 8px', marginBottom: 4, borderRadius: 4 }}>{pos}</div>
@@ -333,6 +351,7 @@ function FBBoxScore({ team, game, players, onClose }) {
                   <th style={{ padding: '4px 6px' }}>Pos</th>
                   <th style={{ padding: '4px 6px' }}>Down</th>
                   <th style={{ padding: '4px 6px' }}>Dist</th>
+                  <th style={{ padding: '4px 6px' }}>Ball</th>
                   <th style={{ padding: '4px 6px' }}>Type</th>
                   <th style={{ padding: '4px 6px' }}>Stat</th>
                   <th style={{ padding: '4px 6px' }}>Pts</th>
@@ -348,6 +367,7 @@ function FBBoxScore({ team, game, players, onClose }) {
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.playerPos}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.down}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.distance}</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.fieldSide} {pl.yardLine}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.playType}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700 }}>{pl.statKey}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700, color: (statDef?.value || 0) >= 0 ? '#16a34a' : '#dc2626' }}>{(statDef?.value || 0) >= 0 ? '+' : ''}{statDef?.value || 0}</td>
@@ -372,8 +392,10 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [down, setDown] = useState(1);
   const [distance, setDistance] = useState(10);
   const [playType, setPlayType] = useState('Run');
+  const [fieldSide, setFieldSide] = useState('BWD');
+  const [yardLine, setYardLine] = useState(20);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
-  const [showReport, setShowReport] = useState(false);
+  const [showBoxScore, setShowBoxScore] = useState(false);
 
   useEffect(() => {
     supabase.from('players').select('*').eq('team_id', team.id).order('created_at').then(({ data }) => { if (data) setPlayers(data); });
@@ -391,7 +413,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       playerPos: selectedPlayerRecord?.position || '?',
       statKey: key,
       statValue: value,
-      down, distance, playType,
+      down, distance, playType, fieldSide, yardLine,
       timestamp: new Date().toISOString(),
     };
     setPlays(prev => [...prev, play]);
@@ -413,62 +435,87 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   };
 
   const saveGame = async () => {
-    await supabase.from('games').update({
+    const { error } = await supabase.from('games').update({
       player_stats: playerStats,
       meta: { ...game.meta, plays },
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
-    onSaved();
+    if (error) alert('Save error: ' + error.message);
+    else onSaved();
   };
 
   const endGame = async () => {
-    await supabase.from('games').update({
+    const { error } = await supabase.from('games').update({
       player_stats: playerStats,
       meta: { ...game.meta, plays },
       is_final: true,
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
-    setConfirmingEnd(false);
-    setShowReport(true);
+    if (!error) { setConfirmingEnd(false); setShowBoxScore(true); }
+    else alert('Save error: ' + error.message);
   };
 
-  if (showReport) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: { ...game.meta, plays } }} players={players} onClose={() => { onSaved(); }} />;
+  if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: { ...game.meta, plays } }} players={players} onClose={() => onSaved()} />;
 
   const lastPlay = plays[plays.length - 1];
   const PLAY_TYPES = ['Run', 'Pass', 'Punt', 'Kick', 'FG', 'PAT'];
+  const oppAbbr = game.meta?.opponentName?.slice(0,3).toUpperCase() || 'OPP';
 
   return (
     <div style={{ color: C.text }}>
+      {/* Header */}
       <div style={{ background: C.navy, borderRadius: 10, padding: '10px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 11, color: C.gold, fontWeight: 700 }}>vs. {game.meta?.opponentName || 'OPP'}</div>
-          <div style={{ fontSize: 10, color: C.muted }}>{game.meta?.date || ''} · {plays.length} plays tagged</div>
+          <div style={{ fontSize: 10, color: C.muted }}>{plays.length} plays tagged</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setShowBoxScore(true)} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>📊 Box</button>
           <button onClick={saveGame} style={{ padding: '6px 10px', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>💾 Save</button>
           <button onClick={() => setConfirmingEnd(true)} style={{ padding: '6px 10px', background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 7, color: C.red, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>🏁 End</button>
         </div>
       </div>
 
+      {/* Down, Distance, Field Position, Play Type */}
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Down & Distance</div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Info</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {/* Down */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DOWN</div>
             <div style={{ display: 'flex', gap: 4 }}>
               {[1,2,3,4].map(d => (
-                <button key={d} onClick={() => setDown(d)} style={{ width: 36, height: 36, borderRadius: 7, fontWeight: 900, fontSize: 15, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
+                <button key={d} onClick={() => setDown(d)} style={{ width: 34, height: 34, borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
               ))}
             </div>
           </div>
+          {/* Distance */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DISTANCE</div>
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <button onClick={() => setDistance(d => Math.max(1, d-1))} style={{ width: 32, height: 32, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>−</button>
-              <div style={{ width: 40, textAlign: 'center', fontSize: 18, fontWeight: 900, color: C.gold }}>{distance}</div>
-              <button onClick={() => setDistance(d => d+1)} style={{ width: 32, height: 32, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>+</button>
+              <button onClick={() => setDistance(d => Math.max(1, d-1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>−</button>
+              <div style={{ width: 36, textAlign: 'center', fontSize: 17, fontWeight: 900, color: C.gold }}>{distance}</div>
+              <button onClick={() => setDistance(d => d+1)} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>+</button>
             </div>
           </div>
+          {/* Field Side */}
+          <div>
+            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>SIDE</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => setFieldSide('BWD')} style={{ padding: '6px 8px', borderRadius: 7, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === 'BWD' ? C.gold : C.navyDark, color: fieldSide === 'BWD' ? C.textDark : C.text, border: `1px solid ${fieldSide === 'BWD' ? C.gold : C.border}` }}>BWD</button>
+              <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '6px 8px', borderRadius: 7, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
+            </div>
+          </div>
+          {/* Yard Line */}
+          <div>
+            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>YARD LINE</div>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button onClick={() => setYardLine(y => Math.max(1, y-1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>−</button>
+              <div style={{ width: 36, textAlign: 'center', fontSize: 17, fontWeight: 900, color: C.gold }}>{yardLine}</div>
+              <button onClick={() => setYardLine(y => Math.min(50, y+1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>+</button>
+            </div>
+          </div>
+          {/* Play Type */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>PLAY TYPE</div>
             <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '7px 8px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 12 }}>
@@ -476,20 +523,26 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
             </select>
           </div>
         </div>
+        {/* Live play summary */}
+        <div style={{ marginTop: 8, padding: '5px 8px', background: 'rgba(200,168,75,0.1)', borderRadius: 6, fontSize: 11, color: C.gold, fontWeight: 700 }}>
+          {down}&{distance} · {fieldSide} {yardLine} · {playType}
+        </div>
       </div>
 
+      {/* Last play */}
       {lastPlay && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 11, color: C.text }}>
             <span style={{ fontWeight: 700 }}>#{lastPlay.playerNumber} {lastPlay.playerName}</span>
-            <span style={{ color: C.muted, margin: '0 6px' }}>·</span>
+            <span style={{ color: C.muted, margin: '0 4px' }}>·</span>
             <span style={{ color: C.gold, fontWeight: 700 }}>{lastPlay.statKey}</span>
-            <span style={{ color: C.muted, fontSize: 10, marginLeft: 6 }}>{lastPlay.down}&{lastPlay.distance} {lastPlay.playType}</span>
+            <span style={{ color: C.muted, fontSize: 10, marginLeft: 4 }}>{lastPlay.down}&{lastPlay.distance} {lastPlay.fieldSide} {lastPlay.yardLine}</span>
           </div>
           <button onClick={undoLast} style={{ padding: '4px 8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo</button>
         </div>
       )}
 
+      {/* Player selector */}
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Select Player</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -499,7 +552,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
             const eff = getStatsForPosition(p.position || 'LB').reduce((s, d) => s + (pStats[d.key] || 0) * d.value, 0);
             return (
               <button key={p.id} onClick={() => setSelectedPlayer(sel ? null : p.id)}
-                style={{ padding: '6px 8px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: sel ? C.goldLight : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 60 }}>
+                style={{ padding: '6px 8px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: sel ? C.goldLight : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 58 }}>
                 <div style={{ fontSize: 10, fontWeight: 900 }}>#{p.number || '—'}</div>
                 <div style={{ fontSize: 9, color: sel ? C.gold : C.muted }}>{p.position || '?'}</div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: eff >= 0 ? C.green : C.red }}>{eff >= 0 ? '+' : ''}{eff}</div>
@@ -509,6 +562,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       </div>
 
+      {/* Stat buttons */}
       {selectedPlayer && (
         <div>
           <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
@@ -531,8 +585,12 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       )}
 
-      {!selectedPlayer && (
-        <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Select a player above to tag stats</div>
+      {!selectedPlayer && players.length > 0 && (
+        <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Select a player above to tag stats</div>
+      )}
+
+      {players.length === 0 && (
+        <div style={{ textAlign: 'center', padding: 20, color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ No players on roster. Add players in the RSTR tab first.</div>
       )}
 
       <button onClick={onBack} style={{ marginTop: 16, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 6, cursor: 'pointer' }}>← Back to Games</button>
@@ -681,7 +739,7 @@ function FBSeasonsScreen({ team, role }) {
     <div>
       {canEdit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
-          <input placeholder='Season name (e.g. "2025-26 Football")' value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
+          <input placeholder='Season name e.g. "2025-26 Football"' value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="date" value={newStart} onChange={e => setNewStart(e.target.value)} style={{ flex: 1, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
             <input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)} style={{ flex: 1, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
@@ -702,7 +760,6 @@ function FBSeasonsScreen({ team, role }) {
 
 export function FootballTeamView({ team, onBack }) {
   const [tab, setTab] = useState('game');
-
   const FB_LOGO = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
 
   const tabBtn = (key, label) => (
