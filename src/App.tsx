@@ -1092,9 +1092,9 @@ function App() {
       const { data: memberships } = await supabase.from('team_memberships').select('role, teams(id, name, sport)');
       if (memberships) {
         const seen = new Set();
-        const uniqueTeams = memberships
-          .map(m => ({ id: m.teams.id, name: m.teams.name, role: m.role }))
-          .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+       const uniqueTeams = memberships
+  .map(m => ({ id: m.teams.id, name: m.teams.name, sport: m.teams.sport || 'basketball', role: m.role }))
+  .filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
         setTeams(uniqueTeams);
 
         const playerRoles = memberships.filter(m => m.role === 'player');
