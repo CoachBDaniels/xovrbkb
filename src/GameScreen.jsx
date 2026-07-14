@@ -11,16 +11,18 @@ function isInsideArc(x, y) {
   return dist < 145;
 }
 
-function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, oppPrimary, oppSecondary, logo, oppLogo, periodLabel, currentPeriod, gameFormat, clockMinutes, clockSeconds, onClockClick, isFinal }) {
+function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, oppPrimary, oppSecondary, logo, oppLogo, periodLabel, currentPeriod, gameFormat, clockMinutes, clockSeconds, onClockClick, isFinal, useFullName }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 52, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: useFullName ? 56 : 52, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
       {/* Our side */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(90deg, ${ourPrimary} 0%, ${ourPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
         {logo
-          ? <img src={logo} alt="" style={{ width: 34, height: 34, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-          : <div style={{ width: 34, height: 34, borderRadius: 5, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
-        <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>{ourAbbr.slice(0,4)}</span>
-        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{ourScore}</span>
+          ? <img src={logo} alt="" style={{ width: 30, height: 30, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+          : <div style={{ width: 30, height: 30, borderRadius: 5, background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+        <span style={{ fontSize: useFullName ? 10 : 14, fontWeight: 900, color: '#e7b977', letterSpacing: useFullName ? 0.3 : 1, textTransform: 'uppercase', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {useFullName ? ourAbbr : ourAbbr.slice(0,4)}
+        </span>
+        <span style={{ fontSize: 26, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{ourScore}</span>
       </div>
       {/* Center */}
       <div style={{ width: 76, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
@@ -37,37 +39,39 @@ function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, 
       </div>
       {/* Opp side */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
-        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
-        <span style={{ fontSize: 14, fontWeight: 900, color: oppSecondary, letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr.slice(0,4)}</span>
+        <span style={{ fontSize: 26, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
+        <span style={{ fontSize: useFullName ? 10 : 14, fontWeight: 900, color: oppSecondary, letterSpacing: useFullName ? 0.3 : 1, textTransform: 'uppercase', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 'auto' }}>
+          {useFullName ? oppAbbr : oppAbbr.slice(0,4)}
+        </span>
         {oppLogo
-          ? <img src={oppLogo} alt="" style={{ width: 34, height: 34, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-          : <div style={{ width: 34, height: 34, borderRadius: 5, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
+          ? <img src={oppLogo} alt="" style={{ width: 30, height: 30, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+          : <div style={{ width: 30, height: 30, borderRadius: 5, background: oppPrimary, border: `1px solid ${oppSecondary}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: oppSecondary }}>{oppAbbr.slice(0,1)}</div>}
       </div>
     </div>
   );
 }
 
 function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName, teamAbbr }) {
-  const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
-  const oppPrimary = opponentRecord?.primary_color || '#333';
-  const oppSecondary = opponentRecord?.secondary_color || '#888';
-  const ourScore = game.meta?.ourScore ?? 0;
-  const theirScore = game.meta?.theirScore ?? 0;
-  const isFinal = !!game.is_final;
-  return (
-    <WorldCupScoreboard
-      ourScore={ourScore} oppScore={theirScore}
-      ourAbbr={teamName || teamAbbr || 'TM'}
-      oppAbbr={oppName}
-      ourPrimary={COLORS.navy} oppPrimary={oppPrimary} oppSecondary={oppSecondary}
-      logo={logo} oppLogo={opponentRecord?.logo_url}
-      periodLabel="Q" currentPeriod={1} gameFormat={{ periods: 4 }}
-      clockMinutes={0} clockSeconds={0} onClockClick={() => {}}
-      isFinal={isFinal}
-    />
-  );
+  const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
+  const oppPrimary = opponentRecord?.primary_color || '#333';
+  const oppSecondary = opponentRecord?.secondary_color || '#888';
+  const ourScore = game.meta?.ourScore ?? 0;
+  const theirScore = game.meta?.theirScore ?? 0;
+  const isFinal = !!game.is_final;
+  return (
+    <WorldCupScoreboard
+      ourScore={ourScore} oppScore={theirScore}
+      ourAbbr={teamName || teamAbbr || 'TM'}
+      oppAbbr={oppName}
+      ourPrimary={COLORS.navy} oppPrimary={oppPrimary} oppSecondary={oppSecondary}
+      logo={logo} oppLogo={opponentRecord?.logo_url}
+      periodLabel="Q" currentPeriod={1} gameFormat={{ periods: 4 }}
+      clockMinutes={0} clockSeconds={0} onClockClick={() => {}}
+      isFinal={isFinal}
+      useFullName={true}
+    />
+  );
 }
-
 
 function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfirmShot, onCancelShot, COLORS }) {
   const svgRef = useRef(null);
@@ -466,7 +470,6 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     </div>
   );
 
-  const ourDisplayName = teamName || 'TM';
   const oppDisplayName = opponent?.name || game.meta?.opponentName || 'OPP';
   const ourAbbr = teamAbbr || (teamName || 'BWD').slice(0,4).toUpperCase();
   const oppAbbr = opponent?.abbr || oppDisplayName.slice(0,4).toUpperCase();
@@ -488,6 +491,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         clockSeconds={clockSeconds}
         onClockClick={openClockEdit}
         isFinal={false}
+        useFullName={false}
       />
 
       {editingClock && (
