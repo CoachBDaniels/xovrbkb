@@ -574,25 +574,116 @@ function FBBoxScore({ team, game, players, onClose }: { team: any; game: any; pl
 
 // ── Game Screen ───────────────────────────────────────────────────────────────
 function FBGameScreen({ team, role }: { team: any; role: string }) {
-  const C = FB_COLORS;
-  const [opponents, setOpponents] = useState<any[]>([]);
-  const [games, setGames] = useState<any[]>([]);
-  const [activeGame, setActiveGame] = useState<any | null>(null);
-  const [viewingGame, setViewingGame] = useState<any | null>(null);
-  const [oppId, setOppId] = useState('');
-  const [date, setDate] = useState('');
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [players, setPlayers] = useState<any[]>([]);
-  const canEdit = role === 'head_coach' || role === 'assistant';
+  const C = FB_COLORS;
+  const [opponents, setOpponents] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
+  const [activeGame, setActiveGame] = useState<any | null>(null);
+  const [viewingGame, setViewingGame] = useState<any | null>(null);
+  const [oppId, setOppId] = useState('');
+  const [date, setDate] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [currentSeason, setCurrentSeason] = useState<any | null>(null);
+  const canEdit = role === 'head_coach' || role === 'assistant';
 
-  const loadGames = () => supabase.from('games').select('*, opponents(name)').eq('season_id', team.id).order('created_at', { ascending: false }).then(({ data }) => { if (data) setGames(data); });
+  useEffect(() => {
+    supabase.from('opponents').select('*').eq('team_id', team.id).then(({ data }) => { if (data) setOpponents(data); });
+    supabase.from('players').select('*').eq('team_id', team.id).then(({ data }) => { if (data) setPlayers(data); });
+    const todayStr = new Date().toISOString().slice(0, 10);
+    supabase.from('seasons').select('*').eq('team_id', team.id).order('created_at', { ascending: false }).then(({ data }) => {
+      if (!data || data.length === 0) return;
+      const active = data.find((s: any) => s.start_date <= todayStr && todayStr <= s.end_date);
+      const season = active || data[0];
+      setCurrentSeason(season);
+      supabase.from('games').select('*, opponents(name)').eq('season_id', season.id).order('created_at', { ascending: false }).then(({ data: gData }) => { if (gData) setGames(gData); });
+    });
+  }, [team.id]);
 
-  useEffect(() => {
-    supabase.from('opponents').select('*').eq('team_id', team.id).then(({ data }) => { if (data) setOpponents(data); });
-    supabase.from('players').select('*').eq('team_id', team.id).then(({ data }) => { if (data) setPlayers(data); });
-    // Load games — use team.id as a scrimmage container for now
-    supabase.from('games').select('*, opponents(name)').eq('season_id', team.currentSeasonId || team.id).order('created_at', { ascending: false }).then(({ data }) => { if (data) setGames(data); });
-  }, [team.id]);
+  const loadGames = () => {
+    if (!currentSeason) return;
+    supabase.from('games').select('*, opponents(name)').eq('season_id', currentSeason.id).order('created_at', { ascending: false }).then(({ data }) => { if (data) setGames(data); });
+  };
+
+  const startGame = async () => {
+    if (!oppId || !currentSeason) {
+      if (!currentSeason) alert('Create a season in the SZN tab first.');
+      return;
+    }
+    const opp = opponents.find(o => o.id === oppId);
+    const { data, error } = await supabase.from('games').insert({
+      season_id: currentSeason.id,
+      opponent_id: oppId,
+      meta: { opponentName: opp?.name || 'OPP', date, plays: [] },
+      player_stats: {},
+    }).select().single();
+    if (!error && data) setActiveGame(data);
+    else if (error) alert('Error: ' + error.message);
+  };
+
+  const deleteGame = async (id: string) => {
+    await supabase.from('games').delete().eq('id', id);
+    setConfirmDeleteId(null);
+    loadGames();
+  };
+
+  if (activeGame) return <FBGameTagger team={team} game={activeGame} onSaved={() => { setActiveGame(null); loadGames(); }} onBack={() => setActiveGame(null)} />;
+  if (viewingGame) return <FBBoxScore team={team} game={viewingGame} players={players} onClose={() => setViewingGame(null)} />;
+
+  const inputStyle = { padding: '8px 10px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 13 };
+
+  return (
+    <div>
+      {!currentSeason && (
+        <div style={{ background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: C.red, fontWeight: 700 }}>
+          ⚠️ No season found. Create one in the SZN tab first.
+        </div>
+      )}
+      {canEdit && currentSeason && (
+        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            Start New Game · {currentSeason.name}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <select value={oppId} onChange={e => setOppId(e.target.value)} style={inputStyle}>
+              <option value="">Select opponent…</option>
+              {opponents.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+            <button onClick={startGame} style={{ padding: '8px 18px', background: C.gold, border: 'none', borderRadius: 7, color: C.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start →</button>
+          </div>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Game Log</div>
+      {games.map(g => (
+        <div key={g.id} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div>
+              <div style={{ fontWeight: 700, color: C.text }}>vs. {g.opponents?.name || g.meta?.opponentName || '—'}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{g.meta?.date || ''} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {!g.is_final ? (
+              <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: C.gold, border: 'none', color: C.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
+            ) : (
+              <button onClick={() => setViewingGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>📊 View Report</button>
+            )}
+            {confirmDeleteId === g.id ? (
+              <>
+                <button onClick={() => deleteGame(g.id)} style={{ padding: '8px 10px', background: C.red, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Confirm</button>
+                <button onClick={() => setConfirmDeleteId(null)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+              </>
+            ) : (
+              canEdit && <button onClick={() => setConfirmDeleteId(g.id)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.red, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Delete</button>
+            )}
+          </div>
+        </div>
+      ))}
+      {games.length === 0 && currentSeason && <p style={{ color: C.muted }}>No games yet. Start one above.</p>}
+    </div>
+  );
+}
+
 
   const startGame = async () => {
     if (!oppId) return;
