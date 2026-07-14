@@ -1018,6 +1018,9 @@ function TeamViewInner({ team, onBack }) {
 }
 
 function TeamView({ team, onBack }) {
+  if (team.sport === 'football') {
+    return <FootballTeamView team={team} onBack={onBack} />;
+  }
   return <ThemeProvider teamId={team.id}><TeamViewInner team={team} onBack={onBack} /></ThemeProvider>;
 }
 
