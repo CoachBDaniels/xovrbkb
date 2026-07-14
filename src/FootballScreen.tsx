@@ -104,6 +104,10 @@ const OFFENSE_POS = ['QB', 'RB', 'WR', 'TE', 'OL'];
 const DEFENSE_POS = ['DL', 'LB', 'DB'];
 const SPECIAL_POS = ['K', 'P', 'LS'];
 
+// Keys that cause automatic possession flip
+const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']); // defense tags these = BWD gets ball
+const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']); // offense tags these = OPP gets ball
+
 function getStatsForPosition(pos) {
   if (OFFENSE_POS.includes(pos)) return OFFENSE_STATS_BY_POS[pos] || OFFENSE_STATS_BY_POS['WR'];
   if (DEFENSE_POS.includes(pos)) return DEFENSE_STATS;
@@ -125,6 +129,53 @@ const C = {
   statNegBg: 'rgba(127,29,29,0.3)', statNegBorder: '#b91c1c', statNegText: '#f87171',
 };
 
+// ── Football Scoreboard ───────────────────────────────────────────────────────
+function FootballScoreboard({ bwdScore, oppScore, oppName, possession, quarter, onFlipPossession, onClockClick, isFinal }) {
+  const bwdPrimary = '#1a3a6b';
+  const oppPrimary = '#444';
+  const bwdHasBall = possession === 'BWD';
+  const oppAbbr = (oppName || 'OPP').slice(0, 4).toUpperCase();
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+      {/* BWD side */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(90deg, ${bwdPrimary} 0%, ${bwdPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
+        <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>BWD</span>
+        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{bwdScore}</span>
+      </div>
+
+      {/* Center — possession + quarter */}
+      <div style={{ width: 88, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
+        {isFinal ? (
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#ff3b30', letterSpacing: 1.5 }}>FINAL</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 9, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>Q{quarter}</div>
+            {/* Possession indicator */}
+            <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 3 }}>
+              {bwdHasBall ? (
+                <span style={{ fontSize: 16 }}>🏈→</span>
+              ) : (
+                <span style={{ fontSize: 16 }}>←🏈</span>
+              )}
+            </button>
+            <div style={{ fontSize: 8, color: bwdHasBall ? '#e7b977' : '#aaa', fontWeight: 700 }}>
+              {bwdHasBall ? 'BWD OFF' : `${oppAbbr} OFF`}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* OPP side */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
+        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
+        <span style={{ fontSize: 14, fontWeight: 900, color: '#aaa', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Roster Screen ─────────────────────────────────────────────────────────────
 function FBRosterScreen({ team, role }) {
   const [players, setPlayers] = useState([]);
   const [newName, setNewName] = useState('');
@@ -147,17 +198,12 @@ function FBRosterScreen({ team, role }) {
       number: newNumber.trim() || null,
       position: newPos,
     });
-    if (error) { alert('Error adding player: ' + error.message); return; }
-    setNewName('');
-    setNewNumber('');
-    setNewPos('QB');
+    if (error) { alert('Error: ' + error.message); return; }
+    setNewName(''); setNewNumber(''); setNewPos('QB');
     load();
   };
 
-  const remove = async (id) => {
-    await supabase.from('players').delete().eq('id', id);
-    load();
-  };
+  const remove = async (id) => { await supabase.from('players').delete().eq('id', id); load(); };
 
   const updateField = async (id, field, value) => {
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -207,6 +253,7 @@ function FBRosterScreen({ team, role }) {
   );
 }
 
+// ── Opponents Screen ──────────────────────────────────────────────────────────
 function FBOpponentsScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [newName, setNewName] = useState('');
@@ -269,6 +316,7 @@ function FBOpponentsScreen({ team, role }) {
   );
 }
 
+// ── Box Score ─────────────────────────────────────────────────────────────────
 function FBBoxScore({ team, game, players, onClose }) {
   const plays = game.meta?.plays || [];
 
@@ -307,7 +355,7 @@ function FBBoxScore({ team, game, players, onClose }) {
         <div style={{ background: '#1a3a6b', color: '#fff', padding: '12px 16px', borderRadius: '8px 8px 0 0', marginBottom: 4 }}>
           <div style={{ fontSize: 10, color: '#c8a84b', letterSpacing: 1 }}>XOVR FOOTBALL · GAME GRADE REPORT</div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>vs. {game.meta?.opponentName || 'OPP'}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{game.meta?.date || ''} · {plays.length} plays</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{game.meta?.date || ''} · {plays.length} plays · BWD {game.meta?.bwdScore || 0} – {game.meta?.oppScore || 0} {(game.meta?.opponentName || 'OPP').slice(0,4).toUpperCase()}</div>
         </div>
         <div style={{ height: 3, background: '#c8a84b', marginBottom: 16 }} />
         {playerRows.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>No stats tagged yet.</div>}
@@ -349,7 +397,8 @@ function FBBoxScore({ team, game, players, onClose }) {
                   <th style={{ padding: '4px 6px', textAlign: 'left' }}>#</th>
                   <th style={{ padding: '4px 6px', textAlign: 'left' }}>Player</th>
                   <th style={{ padding: '4px 6px' }}>Pos</th>
-                  <th style={{ padding: '4px 6px' }}>Down</th>
+                  <th style={{ padding: '4px 6px' }}>Poss</th>
+                  <th style={{ padding: '4px 6px' }}>Dn</th>
                   <th style={{ padding: '4px 6px' }}>Dist</th>
                   <th style={{ padding: '4px 6px' }}>Ball</th>
                   <th style={{ padding: '4px 6px' }}>Type</th>
@@ -365,6 +414,7 @@ function FBBoxScore({ team, game, players, onClose }) {
                       <td style={{ padding: '3px 6px', fontWeight: 700 }}>{pl.playerNumber}</td>
                       <td style={{ padding: '3px 6px' }}>{pl.playerName}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.playerPos}</td>
+                      <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700, color: pl.possession === 'BWD' ? '#c8a84b' : '#aaa' }}>{pl.possession === 'BWD' ? '🏈 BWD' : `🏈 ${pl.oppAbbr || 'OPP'}`}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.down}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.distance}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.fieldSide} {pl.yardLine}</td>
@@ -384,6 +434,7 @@ function FBBoxScore({ team, game, players, onClose }) {
   );
 }
 
+// ── Game Tagger ───────────────────────────────────────────────────────────────
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -394,8 +445,15 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [playType, setPlayType] = useState('Run');
   const [fieldSide, setFieldSide] = useState('BWD');
   const [yardLine, setYardLine] = useState(20);
+  const [possession, setPossession] = useState(game.meta?.possession || 'BWD');
+  const [quarter, setQuarter] = useState(game.meta?.quarter || 1);
+  const [bwdScore, setBwdScore] = useState(game.meta?.bwdScore || 0);
+  const [oppScore, setOppScore] = useState(game.meta?.oppScore || 0);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
+
+  const oppName = game.meta?.opponentName || 'OPP';
+  const oppAbbr = oppName.slice(0, 4).toUpperCase();
 
   useEffect(() => {
     supabase.from('players').select('*').eq('team_id', team.id).order('created_at').then(({ data }) => { if (data) setPlayers(data); });
@@ -414,6 +472,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       statKey: key,
       statValue: value,
       down, distance, playType, fieldSide, yardLine,
+      possession, oppAbbr,
       timestamp: new Date().toISOString(),
     };
     setPlays(prev => [...prev, play]);
@@ -421,6 +480,33 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       const cur = prev[selectedPlayer] || {};
       return { ...prev, [selectedPlayer]: { ...cur, [key]: (cur[key] || 0) + 1 } };
     });
+
+    // Auto score on TD
+    if (key === 'TD' || key === 'DefTD' || key === 'RetTD') {
+      if (possession === 'BWD' || key === 'DefTD') {
+        if (key === 'DefTD') setBwdScore(s => s + 6);
+        else setBwdScore(s => s + 6);
+      } else {
+        setOppScore(s => s + 6);
+      }
+    }
+    if (key === 'FGM') {
+      if (possession === 'BWD') setBwdScore(s => s + 3);
+      else setOppScore(s => s + 3);
+    }
+
+    // Auto flip possession on turnovers
+    const playerPos = selectedPlayerRecord?.position || '';
+    const isDefense = DEFENSE_POS.includes(playerPos);
+    const isOffense = OFFENSE_POS.includes(playerPos);
+    if (isDefense && BWD_TURNOVER_KEYS.has(key)) {
+      setPossession('BWD');
+      setDown(1); setDistance(10);
+    } else if (isOffense && OPP_TURNOVER_KEYS.has(key)) {
+      setPossession('OPP');
+      setDown(1); setDistance(10);
+    }
+
     setSelectedPlayer(null);
   };
 
@@ -434,10 +520,14 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     });
   };
 
+  const getMeta = () => ({
+    ...game.meta, plays, possession, quarter, bwdScore, oppScore,
+  });
+
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: playerStats,
-      meta: { ...game.meta, plays },
+      meta: getMeta(),
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (error) alert('Save error: ' + error.message);
@@ -447,7 +537,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: playerStats,
-      meta: { ...game.meta, plays },
+      meta: getMeta(),
       is_final: true,
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
@@ -455,77 +545,106 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     else alert('Save error: ' + error.message);
   };
 
-  if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: { ...game.meta, plays } }} players={players} onClose={() => onSaved()} />;
+  if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: getMeta() }} players={players} onClose={() => onSaved()} />;
 
   const lastPlay = plays[plays.length - 1];
   const PLAY_TYPES = ['Run', 'Pass', 'Punt', 'Kick', 'FG', 'PAT'];
-  const oppAbbr = game.meta?.opponentName?.slice(0,3).toUpperCase() || 'OPP';
 
   return (
     <div style={{ color: C.text }}>
-      {/* Header */}
-      <div style={{ background: C.navy, borderRadius: 10, padding: '10px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.gold, fontWeight: 700 }}>vs. {game.meta?.opponentName || 'OPP'}</div>
-          <div style={{ fontSize: 10, color: C.muted }}>{plays.length} plays tagged</div>
+      {/* Scoreboard */}
+      <FootballScoreboard
+        bwdScore={bwdScore}
+        oppScore={oppScore}
+        oppName={oppName}
+        possession={possession}
+        quarter={quarter}
+        onFlipPossession={() => {
+          setPossession(p => p === 'BWD' ? 'OPP' : 'BWD');
+          setDown(1); setDistance(10);
+        }}
+        isFinal={false}
+      />
+
+      {/* Score editors + Quarter */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
+        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>BWD</span>
+          <button onClick={() => setBwdScore(s => Math.max(0, s-1))} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
+          <span style={{ fontSize: 16, fontWeight: 900, color: C.text, minWidth: 24, textAlign: 'center' }}>{bwdScore}</span>
+          <button onClick={() => setBwdScore(s => s+1)} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setShowBoxScore(true)} style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>📊 Box</button>
-          <button onClick={saveGame} style={{ padding: '6px 10px', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>💾 Save</button>
-          <button onClick={() => setConfirmingEnd(true)} style={{ padding: '6px 10px', background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 7, color: C.red, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>🏁 End</button>
+        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>Q</span>
+          {[1,2,3,4].map(q => (
+            <button key={q} onClick={() => setQuarter(q)} style={{ width: 24, height: 24, borderRadius: 5, fontWeight: 900, fontSize: 12, cursor: 'pointer', background: quarter === q ? C.gold : C.navyDark, color: quarter === q ? C.textDark : C.text, border: `1px solid ${quarter === q ? C.gold : C.border}` }}>{q}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+          <button onClick={() => setOppScore(s => Math.max(0, s-1))} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
+          <span style={{ fontSize: 16, fontWeight: 900, color: C.text, minWidth: 24, textAlign: 'center' }}>{oppScore}</span>
+          <button onClick={() => setOppScore(s => s+1)} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
+          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>{oppAbbr}</span>
         </div>
       </div>
 
-      {/* Down, Distance, Field Position, Play Type */}
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <button onClick={() => setShowBoxScore(true)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>📊 Box</button>
+        <button onClick={saveGame} style={{ flex: 1, padding: '8px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>💾 Save</button>
+        <button onClick={() => setConfirmingEnd(true)} style={{ flex: 1, padding: '8px 0', background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 7, color: C.red, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>🏁 End</button>
+      </div>
+
+      {/* Play info */}
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
         <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Info</div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {/* Down */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DOWN</div>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 3 }}>
               {[1,2,3,4].map(d => (
-                <button key={d} onClick={() => setDown(d)} style={{ width: 34, height: 34, borderRadius: 7, fontWeight: 900, fontSize: 14, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
+                <button key={d} onClick={() => setDown(d)} style={{ width: 32, height: 32, borderRadius: 7, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
               ))}
             </div>
           </div>
           {/* Distance */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DISTANCE</div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <button onClick={() => setDistance(d => Math.max(1, d-1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>−</button>
-              <div style={{ width: 36, textAlign: 'center', fontSize: 17, fontWeight: 900, color: C.gold }}>{distance}</div>
-              <button onClick={() => setDistance(d => d+1)} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>+</button>
+            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DIST</div>
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+              <button onClick={() => setDistance(d => Math.max(1, d-1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
+              <div style={{ width: 32, textAlign: 'center', fontSize: 16, fontWeight: 900, color: C.gold }}>{distance}</div>
+              <button onClick={() => setDistance(d => d+1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
             </div>
           </div>
-          {/* Field Side */}
+          {/* Field side */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>SIDE</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => setFieldSide('BWD')} style={{ padding: '6px 8px', borderRadius: 7, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === 'BWD' ? C.gold : C.navyDark, color: fieldSide === 'BWD' ? C.textDark : C.text, border: `1px solid ${fieldSide === 'BWD' ? C.gold : C.border}` }}>BWD</button>
-              <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '6px 8px', borderRadius: 7, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
+            <div style={{ display: 'flex', gap: 3 }}>
+              <button onClick={() => setFieldSide('BWD')} style={{ padding: '5px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === 'BWD' ? C.gold : C.navyDark, color: fieldSide === 'BWD' ? C.textDark : C.text, border: `1px solid ${fieldSide === 'BWD' ? C.gold : C.border}` }}>BWD</button>
+              <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '5px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
             </div>
           </div>
-          {/* Yard Line */}
+          {/* Yard line */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>YARD LINE</div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              <button onClick={() => setYardLine(y => Math.max(1, y-1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>−</button>
-              <div style={{ width: 36, textAlign: 'center', fontSize: 17, fontWeight: 900, color: C.gold }}>{yardLine}</div>
-              <button onClick={() => setYardLine(y => Math.min(50, y+1))} style={{ width: 30, height: 30, borderRadius: 7, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, fontSize: 16, cursor: 'pointer' }}>+</button>
+            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>YD LINE</div>
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+              <button onClick={() => setYardLine(y => Math.max(1, y-1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
+              <div style={{ width: 32, textAlign: 'center', fontSize: 16, fontWeight: 900, color: C.gold }}>{yardLine}</div>
+              <button onClick={() => setYardLine(y => Math.min(50, y+1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
             </div>
           </div>
-          {/* Play Type */}
+          {/* Play type */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>PLAY TYPE</div>
-            <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '7px 8px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 12 }}>
+            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>TYPE</div>
+            <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '6px 7px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11 }}>
               {PLAY_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
         </div>
-        {/* Live play summary */}
-        <div style={{ marginTop: 8, padding: '5px 8px', background: 'rgba(200,168,75,0.1)', borderRadius: 6, fontSize: 11, color: C.gold, fontWeight: 700 }}>
-          {down}&{distance} · {fieldSide} {yardLine} · {playType}
+        {/* Summary */}
+        <div style={{ marginTop: 8, padding: '4px 8px', background: 'rgba(200,168,75,0.1)', borderRadius: 6, fontSize: 11, color: C.gold, fontWeight: 700 }}>
+          {possession === 'BWD' ? '🏈 BWD OFF' : `🏈 ${oppAbbr} OFF`} · {down}&{distance} · {fieldSide} {yardLine} · {playType}
         </div>
       </div>
 
@@ -588,7 +707,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       {!selectedPlayer && players.length > 0 && (
         <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Select a player above to tag stats</div>
       )}
-
       {players.length === 0 && (
         <div style={{ textAlign: 'center', padding: 20, color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ No players on roster. Add players in the RSTR tab first.</div>
       )}
@@ -609,6 +727,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   );
 }
 
+// ── Game Screen ───────────────────────────────────────────────────────────────
 function FBGameScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [games, setGames] = useState([]);
@@ -648,7 +767,7 @@ function FBGameScreen({ team, role }) {
     const { data, error } = await supabase.from('games').insert({
       season_id: currentSeason.id,
       opponent_id: oppId,
-      meta: { opponentName: opp?.name || 'OPP', date, plays: [] },
+      meta: { opponentName: opp?.name || 'OPP', date, plays: [], possession: 'BWD', quarter: 1, bwdScore: 0, oppScore: 0 },
       player_stats: {},
     }).select().single();
     if (!error && data) setActiveGame(data);
@@ -689,36 +808,43 @@ function FBGameScreen({ team, role }) {
         </div>
       )}
       <div style={{ fontSize: 12, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Game Log</div>
-      {games.map(g => (
-        <div key={g.id} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div>
-              <div style={{ fontWeight: 700, color: C.text }}>vs. {g.opponents?.name || g.meta?.opponentName || '—'}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{g.meta?.date || ''} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}</div>
+      {games.map(g => {
+        const bwd = g.meta?.bwdScore ?? 0;
+        const opp = g.meta?.oppScore ?? 0;
+        return (
+          <div key={g.id} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: C.text }}>vs. {g.opponents?.name || g.meta?.opponentName || '—'}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {g.meta?.date || ''} · BWD {bwd} – {opp} {(g.meta?.opponentName || 'OPP').slice(0,4).toUpperCase()} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {!g.is_final ? (
+                <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: C.gold, border: 'none', color: C.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
+              ) : (
+                <button onClick={() => setViewingGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>📊 View Report</button>
+              )}
+              {confirmDeleteId === g.id ? (
+                <>
+                  <button onClick={() => deleteGame(g.id)} style={{ padding: '8px 10px', background: C.red, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Confirm</button>
+                  <button onClick={() => setConfirmDeleteId(null)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+                </>
+              ) : (
+                canEdit && <button onClick={() => setConfirmDeleteId(g.id)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.red, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Delete</button>
+              )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {!g.is_final ? (
-              <button onClick={() => setActiveGame(g)} style={{ flex: 1, padding: 8, background: C.gold, border: 'none', color: C.textDark, borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>Continue Tagging</button>
-            ) : (
-              <button onClick={() => setViewingGame(g)} style={{ flex: 1, padding: 8, background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>📊 View Report</button>
-            )}
-            {confirmDeleteId === g.id ? (
-              <>
-                <button onClick={() => deleteGame(g.id)} style={{ padding: '8px 10px', background: C.red, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Confirm</button>
-                <button onClick={() => setConfirmDeleteId(null)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
-              </>
-            ) : (
-              canEdit && <button onClick={() => setConfirmDeleteId(g.id)} style={{ padding: '8px 10px', background: 'none', border: `1px solid ${C.border}`, color: C.red, borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Delete</button>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {games.length === 0 && currentSeason && <p style={{ color: C.muted }}>No games yet. Start one above.</p>}
     </div>
   );
 }
 
+// ── Seasons Screen ────────────────────────────────────────────────────────────
 function FBSeasonsScreen({ team, role }) {
   const [seasons, setSeasons] = useState([]);
   const [newName, setNewName] = useState('');
@@ -739,7 +865,7 @@ function FBSeasonsScreen({ team, role }) {
     <div>
       {canEdit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
-          <input placeholder='Season name e.g. "2025-26 Football"' value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
+          <input placeholder='Season name e.g. "Pre Season 26"' value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="date" value={newStart} onChange={e => setNewStart(e.target.value)} style={{ flex: 1, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
             <input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)} style={{ flex: 1, padding: 8, background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
@@ -758,6 +884,7 @@ function FBSeasonsScreen({ team, role }) {
   );
 }
 
+// ── Main View ─────────────────────────────────────────────────────────────────
 export function FootballTeamView({ team, onBack }) {
   const [tab, setTab] = useState('game');
   const FB_LOGO = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
