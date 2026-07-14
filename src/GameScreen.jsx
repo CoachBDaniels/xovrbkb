@@ -48,26 +48,26 @@ function WorldCupScoreboard({ ourScore, oppScore, ourAbbr, oppAbbr, ourPrimary, 
 }
 
 function MiniGameScoreboard({ game, opponentRecord, COLORS, logo, teamName, teamAbbr }) {
-  const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
-  const oppPrimary = opponentRecord?.primary_color || '#333';
-  const oppSecondary = opponentRecord?.secondary_color || '#888';
-  const ourScore = game.meta?.ourScore ?? 0;
-  const theirScore = game.meta?.theirScore ?? 0;
-  const isFinal = !!game.is_final;
-  const ourAbbr = teamAbbr || (teamName || 'TM').slice(0,4).toUpperCase();
-  const oppAbbr = opponentRecord?.abbr || oppName.slice(0,4).toUpperCase();
-  return (
-    <WorldCupScoreboard
-      ourScore={ourScore} oppScore={theirScore}
-      ourAbbr={ourAbbr} oppAbbr={oppAbbr}
-      ourPrimary={COLORS.navy} oppPrimary={oppPrimary} oppSecondary={oppSecondary}
-      logo={logo} oppLogo={opponentRecord?.logo_url}
-      periodLabel="Q" currentPeriod={1} gameFormat={{ periods: 4 }}
-      clockMinutes={0} clockSeconds={0} onClockClick={() => {}}
-      isFinal={isFinal}
-    />
-  );
+  const oppName = game.opponents?.name || game.meta?.opponentName || 'Opponent';
+  const oppPrimary = opponentRecord?.primary_color || '#333';
+  const oppSecondary = opponentRecord?.secondary_color || '#888';
+  const ourScore = game.meta?.ourScore ?? 0;
+  const theirScore = game.meta?.theirScore ?? 0;
+  const isFinal = !!game.is_final;
+  return (
+    <WorldCupScoreboard
+      ourScore={ourScore} oppScore={theirScore}
+      ourAbbr={teamName || teamAbbr || 'TM'}
+      oppAbbr={oppName}
+      ourPrimary={COLORS.navy} oppPrimary={oppPrimary} oppSecondary={oppSecondary}
+      logo={logo} oppLogo={opponentRecord?.logo_url}
+      periodLabel="Q" currentPeriod={1} gameFormat={{ periods: 4 }}
+      clockMinutes={0} clockSeconds={0} onClockClick={() => {}}
+      isFinal={isFinal}
+    />
+  );
 }
+
 
 function MiniCourtTappable({ courtColor, laneColor, onTap, pendingShot, onConfirmShot, onCancelShot, COLORS }) {
   const svgRef = useRef(null);
