@@ -1089,7 +1089,7 @@ function App() {
   useEffect(() => {
     if (!session) return;
     const load = async () => {
-      const { data: memberships } = await supabase.from('team_memberships').select('role, teams(id, name)');
+      const { data: memberships } = await supabase.from('team_memberships').select('role, teams(id, name, sport)');
       if (memberships) {
         const seen = new Set();
         const uniqueTeams = memberships
