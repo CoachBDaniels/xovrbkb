@@ -128,31 +128,212 @@ const C = {
   statNegBg: 'rgba(127,29,29,0.3)', statNegBorder: '#b91c1c', statNegText: '#f87171',
 };
 
-function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, onFlipPossession, isFinal }) {
+// ── TV-style Scoreboard ───────────────────────────────────────────────────────
+function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, down, distance, fieldSide, yardLine, isFinal }) {
   const bwdHasBall = possession === 'BWD';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(90deg, #1a3a6b 0%, #1a3a6b 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
-        <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, opacity: bwdHasBall ? 1 : 0.12, flexShrink: 0 }}>🏈</button>
-        <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>BWD</span>
-        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{bwdScore}</span>
+    <div style={{ marginBottom: 10 }}>
+      {/* Main score bar */}
+      <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: '10px 10px 0 0', overflow: 'hidden', height: 52 }}>
+        {/* BWD */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', background: 'linear-gradient(90deg, #1a3a6b 60%, #0d1b2e 100%)' }}>
+          {bwdHasBall && !isFinal && <span style={{ fontSize: 14 }}>🏈</span>}
+          <span style={{ fontSize: 15, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase' }}>BWD</span>
+          <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginLeft: 'auto' }}>{bwdScore}</span>
+        </div>
+        {/* Center divider */}
+        <div style={{ width: 2, background: '#000' }} />
+        {/* OPP */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px', background: 'linear-gradient(270deg, #444 60%, #0d1b2e 100%)' }}>
+          <span style={{ fontSize: 28, fontWeight: 900, color: '#fff' }}>{oppScore}</span>
+          <span style={{ fontSize: 15, fontWeight: 900, color: '#ccc', letterSpacing: 1, textTransform: 'uppercase', marginLeft: 'auto' }}>{oppAbbr}</span>
+          {!bwdHasBall && !isFinal && <span style={{ fontSize: 14 }}>🏈</span>}
+        </div>
       </div>
-      <div style={{ width: 56, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
+      {/* Bottom info bar — TV style */}
+      <div style={{ display: 'flex', alignItems: 'center', background: '#111', borderRadius: '0 0 10px 10px', padding: '5px 14px', gap: 0 }}>
         {isFinal ? (
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
+          <span style={{ fontSize: 12, fontWeight: 900, color: '#ff3b30', letterSpacing: 2, margin: '0 auto' }}>FINAL</span>
         ) : (
-          <div style={{ fontSize: 15, fontWeight: 900, color: '#e7b977' }}>Q{quarter}</div>
+          <>
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#e7b977', minWidth: 32 }}>Q{quarter}</span>
+            <span style={{ width: 1, background: '#333', alignSelf: 'stretch', margin: '0 10px' }} />
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#fff' }}>{down}{down === 1 ? 'ST' : down === 2 ? 'ND' : down === 3 ? 'RD' : 'TH'} & {distance}</span>
+            <span style={{ width: 1, background: '#333', alignSelf: 'stretch', margin: '0 10px' }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#aaa' }}>{fieldSide} {yardLine}</span>
+          </>
         )}
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(270deg, #444 0%, #444 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
-        <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
-        <span style={{ fontSize: 14, fontWeight: 900, color: '#aaa', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr}</span>
-        <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, opacity: bwdHasBall ? 0.12 : 1, flexShrink: 0 }}>🏈</button>
       </div>
     </div>
   );
 }
 
+// ── Lineup Picker ─────────────────────────────────────────────────────────────
+function LineupPicker({ players, unit, onConfirm }) {
+  const [selected, setSelected] = useState([]);
+  const isOffense = unit === 'offense';
+  const eligible = players.filter(p => {
+    const pos = p.position || '';
+    return isOffense ? OFFENSE_POS.includes(pos) : DEFENSE_POS.includes(pos);
+  });
+
+  const toggle = (id) => {
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 11 ? [...prev, id] : prev);
+  };
+
+  // Group by position
+  const groups = {};
+  eligible.forEach(p => {
+    const pos = p.position || 'Other';
+    if (!groups[pos]) groups[pos] = [];
+    groups[pos].push(p);
+  });
+
+  const posOrder = isOffense ? ['OL', 'QB', 'RB', 'WR', 'TE'] : ['DL', 'LB', 'DB'];
+
+  return (
+    <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 900, color: C.gold, marginBottom: 4 }}>
+        {isOffense ? '⚔️ Set Offensive Lineup' : '🛡️ Set Defensive Lineup'}
+      </div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>{selected.length}/11 selected</div>
+      {posOrder.map(pos => {
+        const grp = groups[pos] || [];
+        if (grp.length === 0) return null;
+        return (
+          <div key={pos} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{pos}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {grp.map(p => {
+                const sel = selected.includes(p.id);
+                return (
+                  <button key={p.id} onClick={() => toggle(p.id)}
+                    style={{ padding: '6px 10px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: sel ? C.goldLight : C.navyDark, color: sel ? C.gold : C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    #{p.number || '—'} {p.name.split(' ')[0]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {eligible.length === 0 && (
+        <div style={{ color: C.muted, fontSize: 13, textAlign: 'center', padding: 20 }}>
+          No {isOffense ? 'offensive' : 'defensive'} players on roster yet.
+        </div>
+      )}
+      <button onClick={() => onConfirm(selected)} disabled={selected.length === 0}
+        style={{ width: '100%', marginTop: 8, padding: 12, background: selected.length > 0 ? C.gold : C.navyDark, border: 'none', borderRadius: 8, color: selected.length > 0 ? C.textDark : C.muted, fontWeight: 800, fontSize: 14, cursor: selected.length > 0 ? 'pointer' : 'default' }}>
+        {selected.length > 0 ? `Confirm ${isOffense ? 'Offense' : 'Defense'} (${selected.length}) →` : 'Select players above'}
+      </button>
+    </div>
+  );
+}
+
+// ── Sub Modal ─────────────────────────────────────────────────────────────────
+function SubModal({ players, currentLineup, unit, onConfirm, onClose }) {
+  const [lineup, setLineup] = useState([...currentLineup]);
+  const isOffense = unit === 'offense';
+  const eligible = players.filter(p => {
+    const pos = p.position || '';
+    return isOffense ? OFFENSE_POS.includes(pos) : DEFENSE_POS.includes(pos);
+  });
+
+  const toggle = (id) => {
+    setLineup(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 11 ? [...prev, id] : prev);
+  };
+
+  const posOrder = isOffense ? ['OL', 'QB', 'RB', 'WR', 'TE'] : ['DL', 'LB', 'DB'];
+  const groups = {};
+  eligible.forEach(p => {
+    const pos = p.position || 'Other';
+    if (!groups[pos]) groups[pos] = [];
+    groups[pos].push(p);
+  });
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: C.navyMid, borderBottom: `1px solid ${C.border}` }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
+        <div style={{ color: C.gold, fontWeight: 800, fontSize: 13 }}>{isOffense ? '⚔️ Offense' : '🛡️ Defense'} Subs · {lineup.length}/11</div>
+        <button onClick={() => onConfirm(lineup)} style={{ padding: '6px 14px', background: C.gold, border: 'none', borderRadius: 7, color: C.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Done</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {posOrder.map(pos => {
+          const grp = groups[pos] || [];
+          if (grp.length === 0) return null;
+          return (
+            <div key={pos} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{pos}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {grp.map(p => {
+                  const inLineup = lineup.includes(p.id);
+                  return (
+                    <button key={p.id} onClick={() => toggle(p.id)}
+                      style={{ padding: '8px 12px', borderRadius: 7, border: inLineup ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: inLineup ? C.goldLight : C.navyDark, color: inLineup ? C.gold : C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      #{p.number || '—'} {p.name.split(' ')[0]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Positioned Player Grid ────────────────────────────────────────────────────
+function PlayerGrid({ players, playerStats, selectedPlayer, currentTags, onSelect, possession, playType }) {
+  const isSTPlay = ST_PLAY_TYPES.has(playType);
+  const onField = players;
+
+  const posOrder = isSTPlay
+    ? ['K', 'P', 'LS', 'OL', 'QB', 'RB', 'WR', 'TE', 'DL', 'LB', 'DB']
+    : possession === 'BWD'
+      ? ['OL', 'QB', 'RB', 'WR', 'TE']
+      : ['DL', 'LB', 'DB'];
+
+  const groups = {};
+  onField.forEach(p => {
+    const pos = p.position || 'Other';
+    if (!groups[pos]) groups[pos] = [];
+    groups[pos].push(p);
+  });
+
+  return (
+    <div>
+      {posOrder.map(pos => {
+        const grp = groups[pos] || [];
+        if (grp.length === 0) return null;
+        return (
+          <div key={pos} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{pos}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {grp.map(p => {
+                const sel = selectedPlayer === p.id;
+                const pStats = playerStats[p.id] || {};
+                const eff = getStatsForPosition(p.position || 'LB').reduce((s, d) => s + (pStats[d.key] || 0) * d.value, 0);
+                const tagged = currentTags.some(t => t.playerId === p.id);
+                return (
+                  <button key={p.id} onClick={() => onSelect(sel ? null : p.id)}
+                    style={{ padding: '5px 7px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : tagged ? `2px solid ${C.green}` : `1px solid ${C.border}`, background: sel ? C.goldLight : tagged ? 'rgba(34,197,94,0.1)' : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 52 }}>
+                    <div style={{ fontSize: 11, fontWeight: 900 }}>#{p.number || '—'}</div>
+                    <div style={{ fontSize: 8, color: sel ? C.gold : C.muted }}>{p.name.split(' ')[0].slice(0,6)}</div>
+                    <div style={{ fontSize: 8, fontWeight: 700, color: eff >= 0 ? C.green : C.red }}>{eff >= 0 ? '+' : ''}{eff}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Roster Screen ─────────────────────────────────────────────────────────────
 function FBRosterScreen({ team, role }) {
   const [players, setPlayers] = useState([]);
   const [newName, setNewName] = useState('');
@@ -161,21 +342,14 @@ function FBRosterScreen({ team, role }) {
   const [editingId, setEditingId] = useState(null);
   const canEdit = role === 'head_coach' || role === 'assistant';
 
-  const load = () => {
-    supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
-      .then(({ data }) => { if (data) setPlayers(data); });
-  };
+  const load = () => supabase.from('players').select('*').eq('team_id', team.id).order('created_at').then(({ data }) => { if (data) setPlayers(data); });
   useEffect(() => { load(); }, [team.id]);
 
   const add = async () => {
     if (!newName.trim()) return;
-    const { error } = await supabase.from('players').insert({
-      team_id: team.id, name: newName.trim(),
-      number: newNumber.trim() || null, position: newPos,
-    });
+    const { error } = await supabase.from('players').insert({ team_id: team.id, name: newName.trim(), number: newNumber.trim() || null, position: newPos });
     if (error) { alert('Error: ' + error.message); return; }
-    setNewName(''); setNewNumber(''); setNewPos('QB');
-    load();
+    setNewName(''); setNewNumber(''); setNewPos('QB'); load();
   };
 
   const remove = async (id) => { await supabase.from('players').delete().eq('id', id); load(); };
@@ -227,6 +401,7 @@ function FBRosterScreen({ team, role }) {
   );
 }
 
+// ── Opponents Screen ──────────────────────────────────────────────────────────
 function FBOpponentsScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [newName, setNewName] = useState('');
@@ -289,6 +464,7 @@ function FBOpponentsScreen({ team, role }) {
   );
 }
 
+// ── Box Score ─────────────────────────────────────────────────────────────────
 function FBBoxScore({ team, game, players, onClose }) {
   const snaps = game.meta?.snaps || [];
   const oppAbbr = game.meta?.opponentAbbr || (game.meta?.opponentName || 'OPP').slice(0,3).toUpperCase();
@@ -389,12 +565,11 @@ function FBBoxScore({ team, game, players, onClose }) {
   );
 }
 
+// ── Game Tagger ───────────────────────────────────────────────────────────────
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-  // Snaps = array of completed plays, each with tags[]
   const [snaps, setSnaps] = useState(game.meta?.snaps || []);
-  // Current snap being built
   const [currentTags, setCurrentTags] = useState([]);
   const [playerStats, setPlayerStats] = useState(game.player_stats || {});
   const [down, setDown] = useState(1);
@@ -406,6 +581,10 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [quarter, setQuarter] = useState(game.meta?.quarter || 1);
   const [bwdScore, setBwdScore] = useState(game.meta?.bwdScore || 0);
   const [oppScore, setOppScore] = useState(game.meta?.oppScore || 0);
+  const [offenseLineup, setOffenseLineup] = useState(game.meta?.offenseLineup || null);
+  const [defenseLineup, setDefenseLineup] = useState(game.meta?.defenseLineup || null);
+  const [lineupStep, setLineupStep] = useState(null); // 'offense' | 'defense' | null
+  const [showSubs, setShowSubs] = useState(null); // 'offense' | 'defense' | null
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [expandedSnap, setExpandedSnap] = useState(null);
@@ -418,14 +597,19 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       .then(({ data }) => { if (data) setPlayers(data); });
   }, [team.id]);
 
-  // Smart filter players based on possession and play type
+  // First time setup — pick lineups
+  useEffect(() => {
+    if (players.length > 0 && !offenseLineup && !defenseLineup) {
+      setLineupStep('offense');
+    }
+  }, [players]);
+
   const isSTPlay = ST_PLAY_TYPES.has(playType);
-  const filteredPlayers = players.filter(p => {
-    const pos = p.position || '';
-    if (isSTPlay) return SPECIAL_POS.includes(pos) || DEFENSE_POS.includes(pos) || OFFENSE_POS.includes(pos);
-    if (possession === 'BWD') return OFFENSE_POS.includes(pos);
-    return DEFENSE_POS.includes(pos);
-  });
+  const currentLineupIds = isSTPlay
+    ? [...(offenseLineup || []), ...(defenseLineup || [])]
+    : possession === 'BWD' ? (offenseLineup || []) : (defenseLineup || []);
+
+  const onFieldPlayers = players.filter(p => currentLineupIds.includes(p.id));
 
   const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
   const statDefs = selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position || 'LB') : DEFENSE_STATS;
@@ -445,7 +629,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       return { ...prev, [selectedPlayer]: { ...cur, [key]: (cur[key] || 0) + 1 } };
     });
 
-    // Auto score
     if (key === 'TD' || key === 'RetTD') {
       if (possession === 'BWD') setBwdScore(s => s + 6);
       else setOppScore(s => s + 6);
@@ -456,13 +639,10 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       else setOppScore(s => s + 3);
     }
 
-    // Auto flip possession on turnovers
     const playerPos = selectedPlayerRecord?.position || '';
-    const isDefense = DEFENSE_POS.includes(playerPos);
-    const isOffense = OFFENSE_POS.includes(playerPos);
-    if (isDefense && BWD_TURNOVER_KEYS.has(key)) {
+    if (DEFENSE_POS.includes(playerPos) && BWD_TURNOVER_KEYS.has(key)) {
       setPossession('BWD'); setDown(1); setDistance(10);
-    } else if (isOffense && OPP_TURNOVER_KEYS.has(key)) {
+    } else if (OFFENSE_POS.includes(playerPos) && OPP_TURNOVER_KEYS.has(key)) {
       setPossession('OPP'); setDown(1); setDistance(10);
     }
 
@@ -496,7 +676,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const undoLastSnap = () => {
     if (snaps.length === 0) return;
     const lastSnap = snaps[snaps.length - 1];
-    // Reverse all stats from last snap
     setPlayerStats(prev => {
       const next = { ...prev };
       (lastSnap.tags || []).forEach(t => {
@@ -508,7 +687,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     setSnaps(prev => prev.slice(0, -1));
   };
 
-  const getMeta = () => ({ ...game.meta, snaps, possession, quarter, bwdScore, oppScore });
+  const getMeta = () => ({ ...game.meta, snaps, possession, quarter, bwdScore, oppScore, offenseLineup, defenseLineup });
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
@@ -528,104 +707,147 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
   if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: getMeta() }} players={players} onClose={() => onSaved()} />;
 
+  // Lineup setup flow
+  if (lineupStep === 'offense') {
+    return (
+      <div style={{ color: C.text }}>
+        <div style={{ marginBottom: 12, fontSize: 13, color: C.muted }}>Step 1 of 2 — Set your starting offensive lineup</div>
+        <LineupPicker players={players} unit="offense" onConfirm={(ids) => { setOffenseLineup(ids); setLineupStep('defense'); }} />
+      </div>
+    );
+  }
+
+  if (lineupStep === 'defense') {
+    return (
+      <div style={{ color: C.text }}>
+        <div style={{ marginBottom: 12, fontSize: 13, color: C.muted }}>Step 2 of 2 — Set your starting defensive lineup</div>
+        <LineupPicker players={players} unit="defense" onConfirm={(ids) => { setDefenseLineup(ids); setLineupStep(null); }} />
+      </div>
+    );
+  }
+
+  // Sub modals
+  if (showSubs) {
+    const currentIds = showSubs === 'offense' ? (offenseLineup || []) : (defenseLineup || []);
+    return (
+      <SubModal
+        players={players}
+        currentLineup={currentIds}
+        unit={showSubs}
+        onConfirm={(ids) => {
+          if (showSubs === 'offense') setOffenseLineup(ids);
+          else setDefenseLineup(ids);
+          setShowSubs(null);
+        }}
+        onClose={() => setShowSubs(null)}
+      />
+    );
+  }
+
   const PLAY_TYPES = ['Run', 'Pass', 'Punt', 'Kick', 'FG', 'PAT'];
+  const distanceOptions = Array.from({ length: 75 }, (_, i) => i + 1);
+  const yardLineOptions = Array.from({ length: 50 }, (_, i) => i + 1);
 
   return (
     <div style={{ color: C.text }}>
-      {/* Scoreboard */}
+      {/* TV Scoreboard */}
       <FootballScoreboard
         bwdScore={bwdScore} oppScore={oppScore} oppAbbr={oppAbbr}
         possession={possession} quarter={quarter}
-        onFlipPossession={() => { setPossession(p => p === 'BWD' ? 'OPP' : 'BWD'); setDown(1); setDistance(10); }}
+        down={down} distance={distance} fieldSide={fieldSide} yardLine={yardLine}
         isFinal={false}
       />
 
-      {/* Score + Quarter row */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
-        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>BWD</span>
-          <button onClick={() => setBwdScore(s => Math.max(0, s-1))} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
-          <span style={{ fontSize: 16, fontWeight: 900, color: C.text, minWidth: 24, textAlign: 'center' }}>{bwdScore}</span>
-          <button onClick={() => setBwdScore(s => s+1)} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
+      {/* Score editors + Quarter + Possession flip */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 9, color: C.gold, fontWeight: 700 }}>BWD</span>
+          <button onClick={() => setBwdScore(s => Math.max(0, s-1))} style={{ width: 22, height: 22, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer', fontSize: 13 }}>−</button>
+          <span style={{ fontSize: 15, fontWeight: 900, color: C.text, minWidth: 22, textAlign: 'center' }}>{bwdScore}</span>
+          <button onClick={() => setBwdScore(s => s+1)} style={{ width: 22, height: 22, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer', fontSize: 13 }}>+</button>
         </div>
-        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginRight: 2 }}>Q</span>
+        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 6px', display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ fontSize: 9, color: C.muted, fontWeight: 700 }}>Q</span>
           {[1,2,3,4].map(q => (
-            <button key={q} onClick={() => setQuarter(q)} style={{ width: 24, height: 24, borderRadius: 5, fontWeight: 900, fontSize: 12, cursor: 'pointer', background: quarter === q ? C.gold : C.navyDark, color: quarter === q ? C.textDark : C.text, border: `1px solid ${quarter === q ? C.gold : C.border}` }}>{q}</button>
+            <button key={q} onClick={() => setQuarter(q)} style={{ width: 22, height: 22, borderRadius: 4, fontWeight: 900, fontSize: 11, cursor: 'pointer', background: quarter === q ? C.gold : C.navyDark, color: quarter === q ? C.textDark : C.text, border: `1px solid ${quarter === q ? C.gold : C.border}` }}>{q}</button>
           ))}
         </div>
-        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-          <button onClick={() => setOppScore(s => Math.max(0, s-1))} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
-          <span style={{ fontSize: 16, fontWeight: 900, color: C.text, minWidth: 24, textAlign: 'center' }}>{oppScore}</span>
-          <button onClick={() => setOppScore(s => s+1)} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
-          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>{oppAbbr}</span>
+        <button onClick={() => { setPossession(p => p === 'BWD' ? 'OPP' : 'BWD'); setDown(1); setDistance(10); }}
+          style={{ padding: '5px 8px', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>
+          🏈 Flip
+        </button>
+        <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+          <button onClick={() => setOppScore(s => Math.max(0, s-1))} style={{ width: 22, height: 22, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer', fontSize: 13 }}>−</button>
+          <span style={{ fontSize: 15, fontWeight: 900, color: C.text, minWidth: 22, textAlign: 'center' }}>{oppScore}</span>
+          <button onClick={() => setOppScore(s => s+1)} style={{ width: 22, height: 22, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer', fontSize: 13 }}>+</button>
+          <span style={{ fontSize: 9, color: C.muted, fontWeight: 700 }}>{oppAbbr}</span>
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        <button onClick={() => setShowBoxScore(true)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>📊 Box</button>
-        <button onClick={saveGame} style={{ flex: 1, padding: '8px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>💾 Save</button>
-        <button onClick={() => setConfirmingEnd(true)} style={{ flex: 1, padding: '8px 0', background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 7, color: C.red, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>🏁 End</button>
-      </div>
-
-      {/* Play info */}
-      <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Info</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {/* Play setup — compact dropdowns */}
+      <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 10px', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          {/* Down */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DOWN</div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Down</div>
             <div style={{ display: 'flex', gap: 3 }}>
               {[1,2,3,4].map(d => (
-                <button key={d} onClick={() => setDown(d)} style={{ width: 32, height: 32, borderRadius: 7, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
+                <button key={d} onClick={() => setDown(d)} style={{ width: 30, height: 30, borderRadius: 6, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: down === d ? C.gold : C.navyDark, color: down === d ? C.textDark : C.text, border: `1px solid ${down === d ? C.gold : C.border}` }}>{d}</button>
               ))}
             </div>
           </div>
+          {/* Distance */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DIST</div>
-            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-              <button onClick={() => setDistance(d => Math.max(1, d-1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
-              <div style={{ width: 32, textAlign: 'center', fontSize: 16, fontWeight: 900, color: C.gold }}>{distance}</div>
-              <button onClick={() => setDistance(d => d+1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
-            </div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Dist</div>
+            <select value={distance} onChange={e => setDistance(Number(e.target.value))}
+              style={{ padding: '5px 6px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 13, fontWeight: 900, width: 60 }}>
+              {distanceOptions.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
           </div>
+          {/* Field side */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>SIDE</div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Side</div>
             <div style={{ display: 'flex', gap: 3 }}>
-              <button onClick={() => setFieldSide('BWD')} style={{ padding: '5px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === 'BWD' ? C.gold : C.navyDark, color: fieldSide === 'BWD' ? C.textDark : C.text, border: `1px solid ${fieldSide === 'BWD' ? C.gold : C.border}` }}>BWD</button>
-              <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '5px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
+              <button onClick={() => setFieldSide('BWD')} style={{ padding: '4px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === 'BWD' ? C.gold : C.navyDark, color: fieldSide === 'BWD' ? C.textDark : C.text, border: `1px solid ${fieldSide === 'BWD' ? C.gold : C.border}` }}>BWD</button>
+              <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '4px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
             </div>
           </div>
+          {/* Yard line */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>YD LINE</div>
-            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-              <button onClick={() => setYardLine(y => Math.max(1, y-1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>−</button>
-              <div style={{ width: 32, textAlign: 'center', fontSize: 16, fontWeight: 900, color: C.gold }}>{yardLine}</div>
-              <button onClick={() => setYardLine(y => Math.min(50, y+1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
-            </div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Yd Line</div>
+            <select value={yardLine} onChange={e => setYardLine(Number(e.target.value))}
+              style={{ padding: '5px 6px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 13, fontWeight: 900, width: 60 }}>
+              {yardLineOptions.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
           </div>
+          {/* Play type */}
           <div>
-            <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>TYPE</div>
-            <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '6px 7px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11 }}>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Type</div>
+            <select value={playType} onChange={e => setPlayType(e.target.value)}
+              style={{ padding: '5px 6px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, width: 62 }}>
               {PLAY_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
         </div>
-        <div style={{ marginTop: 8, padding: '4px 8px', background: 'rgba(200,168,75,0.1)', borderRadius: 6, fontSize: 11, color: C.gold, fontWeight: 700 }}>
-          {possession === 'BWD' ? '🏈 BWD OFF' : `🏈 ${oppAbbr} OFF`} · {down}&{distance} · {fieldSide} {yardLine} · {playType}
-        </div>
       </div>
 
-      {/* Current snap tags */}
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+        <button onClick={() => setShowBoxScore(true)} style={{ flex: 1, padding: '7px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>📊 Box</button>
+        <button onClick={() => setShowSubs('offense')} style={{ flex: 1, padding: '7px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>⚔️ OFF Sub</button>
+        <button onClick={() => setShowSubs('defense')} style={{ flex: 1, padding: '7px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>🛡️ DEF Sub</button>
+        <button onClick={saveGame} style={{ flex: 1, padding: '7px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>💾 Save</button>
+        <button onClick={() => setConfirmingEnd(true)} style={{ flex: 1, padding: '7px 0', background: C.redBg, border: `1px solid ${C.red}`, borderRadius: 7, color: C.red, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>🏁 End</button>
+      </div>
+
+      {/* Current snap */}
       {currentTags.length > 0 && (
-        <div style={{ background: 'rgba(200,168,75,0.06)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
+        <div style={{ background: 'rgba(200,168,75,0.06)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '8px 12px', marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Current Play · {currentTags.length} tag{currentTags.length !== 1 ? 's' : ''}
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={undoLastTag} style={{ padding: '4px 8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Tag</button>
-              <button onClick={commitSnap} style={{ padding: '4px 10px', background: C.gold, border: 'none', borderRadius: 6, color: C.textDark, fontSize: 11, cursor: 'pointer', fontWeight: 800 }}>Next Play →</button>
+            <div style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>Play {snaps.length + 1} · {currentTags.length} tag{currentTags.length !== 1 ? 's' : ''}</div>
+            <div style={{ display: 'flex', gap: 5 }}>
+              <button onClick={undoLastTag} style={{ padding: '3px 8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 10, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Tag</button>
+              <button onClick={commitSnap} style={{ padding: '3px 10px', background: C.gold, border: 'none', borderRadius: 6, color: C.textDark, fontSize: 10, cursor: 'pointer', fontWeight: 800 }}>Next Play →</button>
             </div>
           </div>
           {currentTags.map((t, i) => {
@@ -641,53 +863,48 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       )}
 
       {currentTags.length === 0 && snaps.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-          <button onClick={undoLastSnap} style={{ padding: '5px 10px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.muted, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Last Play</button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button onClick={undoLastSnap} style={{ padding: '4px 10px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.muted, fontSize: 10, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Last Play</button>
         </div>
       )}
 
-      {/* Player selector — filtered by possession */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-          {isSTPlay ? 'All Players' : possession === 'BWD' ? '⚔️ BWD Offense' : '🛡️ BWD Defense'}
+      {/* Player grid — positioned */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+          {isSTPlay ? '🏈 Special Teams' : possession === 'BWD' ? '⚔️ BWD Offense' : '🛡️ BWD Defense'}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {filteredPlayers.map(p => {
-            const sel = selectedPlayer === p.id;
-            const pStats = playerStats[p.id] || {};
-            const eff = getStatsForPosition(p.position || 'LB').reduce((s, d) => s + (pStats[d.key] || 0) * d.value, 0);
-            const alreadyTaggedThisPlay = currentTags.some(t => t.playerId === p.id);
-            return (
-              <button key={p.id} onClick={() => setSelectedPlayer(sel ? null : p.id)}
-                style={{ padding: '6px 8px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : alreadyTaggedThisPlay ? `2px solid ${C.green}` : `1px solid ${C.border}`, background: sel ? C.goldLight : alreadyTaggedThisPlay ? 'rgba(34,197,94,0.1)' : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 58 }}>
-                <div style={{ fontSize: 10, fontWeight: 900 }}>#{p.number || '—'}</div>
-                <div style={{ fontSize: 9, color: sel ? C.gold : C.muted }}>{p.position || '?'}</div>
-                <div style={{ fontSize: 9, fontWeight: 700, color: eff >= 0 ? C.green : C.red }}>{eff >= 0 ? '+' : ''}{eff}</div>
-              </button>
-            );
-          })}
-          {filteredPlayers.length === 0 && (
-            <div style={{ fontSize: 12, color: C.muted, padding: 8 }}>No {possession === 'BWD' ? 'offensive' : 'defensive'} players on roster yet.</div>
-          )}
-        </div>
+        <PlayerGrid
+          players={onFieldPlayers}
+          playerStats={playerStats}
+          selectedPlayer={selectedPlayer}
+          currentTags={currentTags}
+          onSelect={setSelectedPlayer}
+          possession={possession}
+          playType={playType}
+        />
+        {onFieldPlayers.length === 0 && (
+          <div style={{ fontSize: 12, color: C.muted, padding: 12, textAlign: 'center' }}>
+            No players in this lineup. Use OFF Sub or DEF Sub to set your lineup.
+          </div>
+        )}
       </div>
 
       {/* Stat buttons */}
       {selectedPlayer && (
-        <div>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
             #{selectedPlayerRecord?.number} {selectedPlayerRecord?.name} · {selectedPlayerRecord?.position}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
             {statDefs.map(def => {
               const count = (playerStats[selectedPlayer] || {})[def.key] || 0;
               const isPos = def.value >= 0;
               return (
                 <button key={def.key} onClick={() => tagStat(def.key, def.value)}
-                  style={{ padding: '10px 4px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', background: isPos ? C.statPosBg : C.statNegBg, border: `2px solid ${isPos ? C.statPosBorder : C.statNegBorder}`, color: isPos ? C.statPosText : C.statNegText, fontWeight: 700 }}>
-                  <div style={{ fontSize: 9 }}>{def.abbr}</div>
-                  <div style={{ fontSize: 14, fontWeight: 900 }}>{count}</div>
-                  <div style={{ fontSize: 8, color: isPos ? C.green : C.red }}>{isPos ? '+' : ''}{def.value}</div>
+                  style={{ padding: '8px 3px', borderRadius: 7, cursor: 'pointer', textAlign: 'center', background: isPos ? C.statPosBg : C.statNegBg, border: `2px solid ${isPos ? C.statPosBorder : C.statNegBorder}`, color: isPos ? C.statPosText : C.statNegText, fontWeight: 700 }}>
+                  <div style={{ fontSize: 8 }}>{def.abbr}</div>
+                  <div style={{ fontSize: 13, fontWeight: 900 }}>{count}</div>
+                  <div style={{ fontSize: 7, color: isPos ? C.green : C.red }}>{isPos ? '+' : ''}{def.value}</div>
                 </button>
               );
             })}
@@ -696,35 +913,35 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       )}
 
       {!selectedPlayer && (
-        <div style={{ textAlign: 'center', padding: 16, color: C.muted, fontSize: 13 }}>
-          {currentTags.length > 0 ? 'Tap another player to add more tags, or hit Next Play →' : 'Select a player above to tag stats'}
+        <div style={{ textAlign: 'center', padding: 12, color: C.muted, fontSize: 12 }}>
+          {currentTags.length > 0 ? 'Tap another player · hit Next Play when done' : 'Tap a player to tag stats'}
         </div>
       )}
 
       {/* Play log */}
       {snaps.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Log · {snaps.length} plays</div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Play Log · {snaps.length} plays</div>
           {[...snaps].reverse().map((snap, i) => {
             const snapIndex = snaps.length - 1 - i;
             const isExpanded = expandedSnap === snapIndex;
             return (
-              <div key={snapIndex} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 6, overflow: 'hidden' }}>
+              <div key={snapIndex} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 5, overflow: 'hidden' }}>
                 <button onClick={() => setExpandedSnap(isExpanded ? null : snapIndex)}
-                  style={{ width: '100%', padding: '8px 10px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}>
-                  <div>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: C.gold }}>Play {snap.snapNumber}</span>
-                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 8 }}>{snap.possession === 'BWD' ? '🏈 OFF' : '🛡️ DEF'} · {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType}</span>
+                  style={{ width: '100%', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: C.gold }}>P{snap.snapNumber}</span>
+                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>{snap.possession === 'BWD' ? '⚔️' : '🛡️'} {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType}</span>
                   </div>
-                  <span style={{ fontSize: 10, color: C.muted }}>{snap.tags?.length || 0} tags {isExpanded ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: 9, color: C.muted }}>{snap.tags?.length || 0}t {isExpanded ? '▲' : '▼'}</span>
                 </button>
                 {isExpanded && (
-                  <div style={{ padding: '4px 10px 10px' }}>
+                  <div style={{ padding: '2px 10px 8px' }}>
                     {(snap.tags || []).map((t, ti) => {
                       const def = getStatsForPosition(t.playerPos).find(d => d.key === t.statKey);
                       const isPos = (def?.value || 0) >= 0;
                       return (
-                        <div key={ti} style={{ fontSize: 11, color: isPos ? C.statPosText : C.statNegText, paddingLeft: 4, marginBottom: 3 }}>
+                        <div key={ti} style={{ fontSize: 10, color: isPos ? C.statPosText : C.statNegText, paddingLeft: 4, marginBottom: 2 }}>
                           #{t.playerNumber} {t.playerName} ({t.playerPos}) — {t.statKey} <span style={{ fontWeight: 900 }}>{isPos ? '+' : ''}{def?.value || 0}</span>
                         </div>
                       );
@@ -737,7 +954,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       )}
 
-      <button onClick={onBack} style={{ marginTop: 16, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 6, cursor: 'pointer' }}>← Back to Games</button>
+      <button onClick={onBack} style={{ marginTop: 12, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 6, cursor: 'pointer' }}>← Back to Games</button>
 
       {confirmingEnd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
@@ -753,6 +970,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   );
 }
 
+// ── Game Screen ───────────────────────────────────────────────────────────────
 function FBGameScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [games, setGames] = useState([]);
@@ -847,9 +1065,11 @@ function FBGameScreen({ team, role }) {
               <FootballScoreboard
                 bwdScore={bwd} oppScore={opp} oppAbbr={gOppAbbr}
                 possession={g.meta?.possession || 'BWD'} quarter={g.meta?.quarter || 1}
-                onFlipPossession={() => {}} isFinal={!!g.is_final}
+                down={g.meta?.lastDown || 1} distance={g.meta?.lastDistance || 10}
+                fieldSide={g.meta?.lastFieldSide || 'BWD'} yardLine={g.meta?.lastYardLine || 20}
+                isFinal={!!g.is_final}
               />
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
                 {g.meta?.date || ''} · {(g.meta?.snaps || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
               </div>
             </div>
@@ -876,6 +1096,7 @@ function FBGameScreen({ team, role }) {
   );
 }
 
+// ── Seasons Screen ────────────────────────────────────────────────────────────
 function FBSeasonsScreen({ team, role }) {
   const [seasons, setSeasons] = useState([]);
   const [newName, setNewName] = useState('');
@@ -915,6 +1136,7 @@ function FBSeasonsScreen({ team, role }) {
   );
 }
 
+// ── Main View ─────────────────────────────────────────────────────────────────
 export function FootballTeamView({ team, onBack }) {
   const [tab, setTab] = useState('game');
   const FB_LOGO = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
