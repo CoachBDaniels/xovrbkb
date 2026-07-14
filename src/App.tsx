@@ -1,3 +1,4 @@
+import { FootballTeamView } from './FootballScreen';
 import { useEffect, useState } from 'react';
 import { supabase } from './supabaseClient';
 import { ThemeProvider, useTheme } from './ThemeContext';
