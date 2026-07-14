@@ -103,6 +103,7 @@ const POSITION_GROUPS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB', 'K', 'P
 const OFFENSE_POS = ['QB', 'RB', 'WR', 'TE', 'OL'];
 const DEFENSE_POS = ['DL', 'LB', 'DB'];
 const SPECIAL_POS = ['K', 'P', 'LS'];
+const ST_PLAY_TYPES = new Set(['Punt', 'Kick', 'FG', 'PAT']);
 const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']);
 const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']);
 
@@ -131,13 +132,11 @@ function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, 
   const bwdHasBall = possession === 'BWD';
   return (
     <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
-      {/* BWD side */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(90deg, #1a3a6b 0%, #1a3a6b 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
         <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, opacity: bwdHasBall ? 1 : 0.12, flexShrink: 0 }}>🏈</button>
         <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>BWD</span>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{bwdScore}</span>
       </div>
-      {/* Center */}
       <div style={{ width: 56, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
         {isFinal ? (
           <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
@@ -145,7 +144,6 @@ function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, 
           <div style={{ fontSize: 15, fontWeight: 900, color: '#e7b977' }}>Q{quarter}</div>
         )}
       </div>
-      {/* OPP side */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(270deg, #444 0%, #444 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
         <span style={{ fontSize: 14, fontWeight: 900, color: '#aaa', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr}</span>
@@ -292,16 +290,16 @@ function FBOpponentsScreen({ team, role }) {
 }
 
 function FBBoxScore({ team, game, players, onClose }) {
-  const plays = game.meta?.plays || [];
+  const snaps = game.meta?.snaps || [];
   const oppAbbr = game.meta?.opponentAbbr || (game.meta?.opponentName || 'OPP').slice(0,3).toUpperCase();
 
   const playerRows = players.map(p => {
     const stats = game.player_stats?.[p.id] || {};
     const statDefs = getStatsForPosition(p.position || 'LB');
     const eff = calcFootballEff(stats, statDefs);
-    const snaps = plays.filter(pl => pl.playerId === p.id).length;
-    return { player: p, stats, eff, snaps, statDefs };
-  }).filter(r => r.snaps > 0 || Object.values(r.stats).some(v => v > 0));
+    const snapCount = snaps.filter(s => s.tags?.some(t => t.playerId === p.id)).length;
+    return { player: p, stats, eff, snapCount, statDefs };
+  }).filter(r => r.snapCount > 0 || Object.values(r.stats).some(v => v > 0));
 
   playerRows.sort((a, b) => b.eff - a.eff);
 
@@ -331,7 +329,7 @@ function FBBoxScore({ team, game, players, onClose }) {
           <div style={{ fontSize: 10, color: '#c8a84b', letterSpacing: 1 }}>XOVR FOOTBALL · GAME GRADE REPORT</div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>vs. {game.meta?.opponentName || 'OPP'}</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
-            {game.meta?.date || ''} · {plays.length} plays · BWD {game.meta?.bwdScore || 0} – {game.meta?.oppScore || 0} {oppAbbr}
+            {game.meta?.date || ''} · {snaps.length} plays · BWD {game.meta?.bwdScore || 0} – {game.meta?.oppScore || 0} {oppAbbr}
           </div>
         </div>
         <div style={{ height: 3, background: '#c8a84b', marginBottom: 16 }} />
@@ -355,7 +353,7 @@ function FBBoxScore({ team, game, players, onClose }) {
                     <tr key={r.player.id} style={{ background: i % 2 === 1 ? '#f0f4fa' : 'transparent', borderBottom: '1px solid #dde3ef' }}>
                       <td style={{ padding: '5px 6px', fontWeight: 700, color: '#1a3a6b' }}>{r.player.number || '—'}</td>
                       <td style={{ padding: '5px 6px', fontWeight: 600 }}>{r.player.name}</td>
-                      <td style={{ padding: '5px 6px', textAlign: 'center' }}>{r.snaps}</td>
+                      <td style={{ padding: '5px 6px', textAlign: 'center' }}>{r.snapCount}</td>
                       {r.statDefs.map(d => <td key={d.key} style={{ padding: '5px 4px', textAlign: 'center', fontWeight: (r.stats[d.key] || 0) > 0 ? 700 : 400, color: (r.stats[d.key] || 0) > 0 ? (d.value >= 0 ? '#16a34a' : '#dc2626') : '#999' }}>{r.stats[d.key] || 0}</td>)}
                       <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 900, color: r.eff >= 0 ? '#16a34a' : '#dc2626' }}>{r.eff >= 0 ? '+' : ''}{r.eff}</td>
                     </tr>
@@ -365,44 +363,24 @@ function FBBoxScore({ team, game, players, onClose }) {
             </div>
           </div>
         ))}
-        {plays.length > 0 && (
+        {snaps.length > 0 && (
           <div style={{ marginTop: 20 }}>
             <div style={{ background: '#1a3a6b', color: '#c8a84b', fontWeight: 900, fontSize: 11, padding: '4px 8px', marginBottom: 4, borderRadius: 4 }}>PLAY LOG</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
-              <thead>
-                <tr style={{ background: '#243d6b', color: '#fff' }}>
-                  <th style={{ padding: '4px 6px', textAlign: 'left' }}>#</th>
-                  <th style={{ padding: '4px 6px', textAlign: 'left' }}>Player</th>
-                  <th style={{ padding: '4px 6px' }}>Pos</th>
-                  <th style={{ padding: '4px 6px' }}>Poss</th>
-                  <th style={{ padding: '4px 6px' }}>Dn</th>
-                  <th style={{ padding: '4px 6px' }}>Dist</th>
-                  <th style={{ padding: '4px 6px' }}>Ball</th>
-                  <th style={{ padding: '4px 6px' }}>Type</th>
-                  <th style={{ padding: '4px 6px' }}>Stat</th>
-                  <th style={{ padding: '4px 6px' }}>Pts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plays.map((pl, i) => {
-                  const statDef = getStatsForPosition(pl.playerPos).find(d => d.key === pl.statKey);
+            {snaps.map((snap, si) => (
+              <div key={si} style={{ marginBottom: 10, borderLeft: '3px solid #1a3a6b', paddingLeft: 10 }}>
+                <div style={{ fontWeight: 800, fontSize: 10, color: '#1a3a6b', marginBottom: 3 }}>
+                  Play {si + 1} · {snap.possession === 'BWD' ? '🏈 BWD OFF' : `🏈 ${oppAbbr} OFF`} · {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType} · Q{snap.quarter}
+                </div>
+                {(snap.tags || []).map((t, ti) => {
+                  const statDef = getStatsForPosition(t.playerPos).find(d => d.key === t.statKey);
                   return (
-                    <tr key={i} style={{ background: i % 2 === 1 ? '#f0f4fa' : 'transparent', borderBottom: '1px solid #dde' }}>
-                      <td style={{ padding: '3px 6px', fontWeight: 700 }}>{pl.playerNumber}</td>
-                      <td style={{ padding: '3px 6px' }}>{pl.playerName}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.playerPos}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700, color: pl.possession === 'BWD' ? '#c8a84b' : '#aaa' }}>{pl.possession === 'BWD' ? '🏈 BWD' : `🏈 ${pl.oppAbbr || 'OPP'}`}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.down}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.distance}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.fieldSide} {pl.yardLine}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center' }}>{pl.playType}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700 }}>{pl.statKey}</td>
-                      <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 700, color: (statDef?.value || 0) >= 0 ? '#16a34a' : '#dc2626' }}>{(statDef?.value || 0) >= 0 ? '+' : ''}{statDef?.value || 0}</td>
-                    </tr>
+                    <div key={ti} style={{ fontSize: 9, color: (statDef?.value || 0) >= 0 ? '#16a34a' : '#dc2626', paddingLeft: 8, marginBottom: 2 }}>
+                      #{t.playerNumber} {t.playerName} ({t.playerPos}) — {t.statKey} {(statDef?.value || 0) >= 0 ? '+' : ''}{statDef?.value || 0}
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            ))}
           </div>
         )}
         <div style={{ marginTop: 16, fontSize: 9, color: '#999', textAlign: 'center' }}>Generated by XOVR Football · {new Date().toLocaleDateString()}</div>
@@ -414,7 +392,10 @@ function FBBoxScore({ team, game, players, onClose }) {
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [plays, setPlays] = useState(game.meta?.plays || []);
+  // Snaps = array of completed plays, each with tags[]
+  const [snaps, setSnaps] = useState(game.meta?.snaps || []);
+  // Current snap being built
+  const [currentTags, setCurrentTags] = useState([]);
   const [playerStats, setPlayerStats] = useState(game.player_stats || {});
   const [down, setDown] = useState(1);
   const [distance, setDistance] = useState(10);
@@ -427,6 +408,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [oppScore, setOppScore] = useState(game.meta?.oppScore || 0);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
+  const [expandedSnap, setExpandedSnap] = useState(null);
 
   const oppName = game.meta?.opponentName || 'OPP';
   const oppAbbr = game.meta?.opponentAbbr || oppName.slice(0, 3).toUpperCase();
@@ -436,22 +418,28 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       .then(({ data }) => { if (data) setPlayers(data); });
   }, [team.id]);
 
+  // Smart filter players based on possession and play type
+  const isSTPlay = ST_PLAY_TYPES.has(playType);
+  const filteredPlayers = players.filter(p => {
+    const pos = p.position || '';
+    if (isSTPlay) return SPECIAL_POS.includes(pos) || DEFENSE_POS.includes(pos) || OFFENSE_POS.includes(pos);
+    if (possession === 'BWD') return OFFENSE_POS.includes(pos);
+    return DEFENSE_POS.includes(pos);
+  });
+
   const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
   const statDefs = selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position || 'LB') : DEFENSE_STATS;
 
   const tagStat = (key, value) => {
     if (!selectedPlayer) return;
-    const play = {
+    const tag = {
       playerId: selectedPlayer,
       playerName: selectedPlayerRecord?.name || '?',
       playerNumber: selectedPlayerRecord?.number || '?',
       playerPos: selectedPlayerRecord?.position || '?',
       statKey: key, statValue: value,
-      down, distance, playType, fieldSide, yardLine,
-      possession, oppAbbr,
-      timestamp: new Date().toISOString(),
     };
-    setPlays(prev => [...prev, play]);
+    setCurrentTags(prev => [...prev, tag]);
     setPlayerStats(prev => {
       const cur = prev[selectedPlayer] || {};
       return { ...prev, [selectedPlayer]: { ...cur, [key]: (cur[key] || 0) + 1 } };
@@ -481,17 +469,46 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     setSelectedPlayer(null);
   };
 
-  const undoLast = () => {
-    if (plays.length === 0) return;
-    const last = plays[plays.length - 1];
-    setPlays(prev => prev.slice(0, -1));
+  const undoLastTag = () => {
+    if (currentTags.length === 0) return;
+    const last = currentTags[currentTags.length - 1];
+    setCurrentTags(prev => prev.slice(0, -1));
     setPlayerStats(prev => {
       const cur = prev[last.playerId] || {};
       return { ...prev, [last.playerId]: { ...cur, [last.statKey]: Math.max(0, (cur[last.statKey] || 0) - 1) } };
     });
   };
 
-  const getMeta = () => ({ ...game.meta, plays, possession, quarter, bwdScore, oppScore });
+  const commitSnap = () => {
+    if (currentTags.length === 0) return;
+    const snap = {
+      snapNumber: snaps.length + 1,
+      down, distance, playType, fieldSide, yardLine,
+      possession, quarter, oppAbbr,
+      tags: currentTags,
+      timestamp: new Date().toISOString(),
+    };
+    setSnaps(prev => [...prev, snap]);
+    setCurrentTags([]);
+    setSelectedPlayer(null);
+  };
+
+  const undoLastSnap = () => {
+    if (snaps.length === 0) return;
+    const lastSnap = snaps[snaps.length - 1];
+    // Reverse all stats from last snap
+    setPlayerStats(prev => {
+      const next = { ...prev };
+      (lastSnap.tags || []).forEach(t => {
+        const cur = next[t.playerId] || {};
+        next[t.playerId] = { ...cur, [t.statKey]: Math.max(0, (cur[t.statKey] || 0) - 1) };
+      });
+      return next;
+    });
+    setSnaps(prev => prev.slice(0, -1));
+  };
+
+  const getMeta = () => ({ ...game.meta, snaps, possession, quarter, bwdScore, oppScore });
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
@@ -511,11 +528,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
   if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: getMeta() }} players={players} onClose={() => onSaved()} />;
 
-  const lastPlay = plays[plays.length - 1];
   const PLAY_TYPES = ['Run', 'Pass', 'Punt', 'Kick', 'FG', 'PAT'];
 
   return (
     <div style={{ color: C.text }}>
+      {/* Scoreboard */}
       <FootballScoreboard
         bwdScore={bwdScore} oppScore={oppScore} oppAbbr={oppAbbr}
         possession={possession} quarter={quarter}
@@ -599,36 +616,59 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       </div>
 
-      {/* Last play */}
-      {lastPlay && (
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 11, color: C.text }}>
-            <span style={{ fontWeight: 700 }}>#{lastPlay.playerNumber} {lastPlay.playerName}</span>
-            <span style={{ color: C.muted, margin: '0 4px' }}>·</span>
-            <span style={{ color: C.gold, fontWeight: 700 }}>{lastPlay.statKey}</span>
-            <span style={{ color: C.muted, fontSize: 10, marginLeft: 4 }}>{lastPlay.down}&{lastPlay.distance} {lastPlay.fieldSide} {lastPlay.yardLine}</span>
+      {/* Current snap tags */}
+      {currentTags.length > 0 && (
+        <div style={{ background: 'rgba(200,168,75,0.06)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
+              Current Play · {currentTags.length} tag{currentTags.length !== 1 ? 's' : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={undoLastTag} style={{ padding: '4px 8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Tag</button>
+              <button onClick={commitSnap} style={{ padding: '4px 10px', background: C.gold, border: 'none', borderRadius: 6, color: C.textDark, fontSize: 11, cursor: 'pointer', fontWeight: 800 }}>Next Play →</button>
+            </div>
           </div>
-          <button onClick={undoLast} style={{ padding: '4px 8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo</button>
+          {currentTags.map((t, i) => {
+            const def = getStatsForPosition(t.playerPos).find(d => d.key === t.statKey);
+            const isPos = (def?.value || 0) >= 0;
+            return (
+              <div key={i} style={{ fontSize: 11, color: isPos ? C.statPosText : C.statNegText, paddingLeft: 4, marginBottom: 2 }}>
+                #{t.playerNumber} {t.playerName} ({t.playerPos}) — {t.statKey} <span style={{ fontWeight: 900 }}>{isPos ? '+' : ''}{def?.value || 0}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Player selector */}
+      {currentTags.length === 0 && snaps.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <button onClick={undoLastSnap} style={{ padding: '5px 10px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, color: C.muted, fontSize: 11, cursor: 'pointer', fontWeight: 700 }}>↩ Undo Last Play</button>
+        </div>
+      )}
+
+      {/* Player selector — filtered by possession */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Select Player</div>
+        <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+          {isSTPlay ? 'All Players' : possession === 'BWD' ? '⚔️ BWD Offense' : '🛡️ BWD Defense'}
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {players.map(p => {
+          {filteredPlayers.map(p => {
             const sel = selectedPlayer === p.id;
             const pStats = playerStats[p.id] || {};
             const eff = getStatsForPosition(p.position || 'LB').reduce((s, d) => s + (pStats[d.key] || 0) * d.value, 0);
+            const alreadyTaggedThisPlay = currentTags.some(t => t.playerId === p.id);
             return (
               <button key={p.id} onClick={() => setSelectedPlayer(sel ? null : p.id)}
-                style={{ padding: '6px 8px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: sel ? C.goldLight : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 58 }}>
+                style={{ padding: '6px 8px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : alreadyTaggedThisPlay ? `2px solid ${C.green}` : `1px solid ${C.border}`, background: sel ? C.goldLight : alreadyTaggedThisPlay ? 'rgba(34,197,94,0.1)' : C.navyMid, color: sel ? C.gold : C.text, cursor: 'pointer', textAlign: 'center', minWidth: 58 }}>
                 <div style={{ fontSize: 10, fontWeight: 900 }}>#{p.number || '—'}</div>
                 <div style={{ fontSize: 9, color: sel ? C.gold : C.muted }}>{p.position || '?'}</div>
                 <div style={{ fontSize: 9, fontWeight: 700, color: eff >= 0 ? C.green : C.red }}>{eff >= 0 ? '+' : ''}{eff}</div>
               </button>
             );
           })}
+          {filteredPlayers.length === 0 && (
+            <div style={{ fontSize: 12, color: C.muted, padding: 8 }}>No {possession === 'BWD' ? 'offensive' : 'defensive'} players on roster yet.</div>
+          )}
         </div>
       </div>
 
@@ -655,11 +695,46 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       )}
 
-      {!selectedPlayer && players.length > 0 && (
-        <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Select a player above to tag stats</div>
+      {!selectedPlayer && (
+        <div style={{ textAlign: 'center', padding: 16, color: C.muted, fontSize: 13 }}>
+          {currentTags.length > 0 ? 'Tap another player to add more tags, or hit Next Play →' : 'Select a player above to tag stats'}
+        </div>
       )}
-      {players.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 20, color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ No players on roster. Add players in the RSTR tab first.</div>
+
+      {/* Play log */}
+      {snaps.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Log · {snaps.length} plays</div>
+          {[...snaps].reverse().map((snap, i) => {
+            const snapIndex = snaps.length - 1 - i;
+            const isExpanded = expandedSnap === snapIndex;
+            return (
+              <div key={snapIndex} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, marginBottom: 6, overflow: 'hidden' }}>
+                <button onClick={() => setExpandedSnap(isExpanded ? null : snapIndex)}
+                  style={{ width: '100%', padding: '8px 10px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}>
+                  <div>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: C.gold }}>Play {snap.snapNumber}</span>
+                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 8 }}>{snap.possession === 'BWD' ? '🏈 OFF' : '🛡️ DEF'} · {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType}</span>
+                  </div>
+                  <span style={{ fontSize: 10, color: C.muted }}>{snap.tags?.length || 0} tags {isExpanded ? '▲' : '▼'}</span>
+                </button>
+                {isExpanded && (
+                  <div style={{ padding: '4px 10px 10px' }}>
+                    {(snap.tags || []).map((t, ti) => {
+                      const def = getStatsForPosition(t.playerPos).find(d => d.key === t.statKey);
+                      const isPos = (def?.value || 0) >= 0;
+                      return (
+                        <div key={ti} style={{ fontSize: 11, color: isPos ? C.statPosText : C.statNegText, paddingLeft: 4, marginBottom: 3 }}>
+                          #{t.playerNumber} {t.playerName} ({t.playerPos}) — {t.statKey} <span style={{ fontWeight: 900 }}>{isPos ? '+' : ''}{def?.value || 0}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <button onClick={onBack} style={{ marginTop: 16, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${C.border}`, color: C.muted, borderRadius: 6, cursor: 'pointer' }}>← Back to Games</button>
@@ -720,7 +795,7 @@ function FBGameScreen({ team, role }) {
       meta: {
         opponentName: opp?.name || 'OPP',
         opponentAbbr: opp?.abbr || (opp?.name || 'OPP').slice(0, 3).toUpperCase(),
-        date, plays: [], possession: 'BWD', quarter: 1, bwdScore: 0, oppScore: 0,
+        date, snaps: [], possession: 'BWD', quarter: 1, bwdScore: 0, oppScore: 0,
       },
       player_stats: {},
     }).select().single();
@@ -772,11 +847,10 @@ function FBGameScreen({ team, role }) {
               <FootballScoreboard
                 bwdScore={bwd} oppScore={opp} oppAbbr={gOppAbbr}
                 possession={g.meta?.possession || 'BWD'} quarter={g.meta?.quarter || 1}
-                onFlipPossession={() => {}}
-                isFinal={!!g.is_final}
+                onFlipPossession={() => {}} isFinal={!!g.is_final}
               />
               <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                {g.meta?.date || ''} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
+                {g.meta?.date || ''} · {(g.meta?.snaps || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
