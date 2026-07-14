@@ -103,10 +103,8 @@ const POSITION_GROUPS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB', 'K', 'P
 const OFFENSE_POS = ['QB', 'RB', 'WR', 'TE', 'OL'];
 const DEFENSE_POS = ['DL', 'LB', 'DB'];
 const SPECIAL_POS = ['K', 'P', 'LS'];
-
-// Keys that cause automatic possession flip
-const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']); // defense tags these = BWD gets ball
-const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']); // offense tags these = OPP gets ball
+const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']);
+const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']);
 
 function getStatsForPosition(pos) {
   if (OFFENSE_POS.includes(pos)) return OFFENSE_STATS_BY_POS[pos] || OFFENSE_STATS_BY_POS['WR'];
@@ -129,53 +127,34 @@ const C = {
   statNegBg: 'rgba(127,29,29,0.3)', statNegBorder: '#b91c1c', statNegText: '#f87171',
 };
 
-// ── Football Scoreboard ───────────────────────────────────────────────────────
-function FootballScoreboard({ bwdScore, oppScore, oppName, possession, quarter, onFlipPossession, onClockClick, isFinal }) {
-  const bwdPrimary = '#1a3a6b';
-  const oppPrimary = '#444';
+function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, onFlipPossession, isFinal }) {
   const bwdHasBall = possession === 'BWD';
-  const oppAbbr = (oppName || 'OPP').slice(0, 4).toUpperCase();
-
   return (
     <div style={{ display: 'flex', alignItems: 'center', borderRadius: 10, overflow: 'hidden', marginBottom: 8, height: 56, boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
       {/* BWD side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(90deg, ${bwdPrimary} 0%, ${bwdPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(90deg, #1a3a6b 0%, #1a3a6b 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
+        <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, opacity: bwdHasBall ? 1 : 0.12, flexShrink: 0 }}>🏈</button>
         <span style={{ fontSize: 14, fontWeight: 900, color: '#e7b977', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0 }}>BWD</span>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, marginLeft: 'auto', flexShrink: 0 }}>{bwdScore}</span>
       </div>
-
-      {/* Center — possession + quarter */}
-      <div style={{ width: 88, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
+      {/* Center */}
+      <div style={{ width: 56, flexShrink: 0, background: '#000', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid #222', borderRight: '1px solid #222' }}>
         {isFinal ? (
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#ff3b30', letterSpacing: 1.5 }}>FINAL</div>
+          <div style={{ fontSize: 9, fontWeight: 800, color: '#ff3b30', letterSpacing: 1 }}>FINAL</div>
         ) : (
-          <>
-            <div style={{ fontSize: 9, color: '#888', fontWeight: 700, letterSpacing: 0.5 }}>Q{quarter}</div>
-            {/* Possession indicator */}
-            <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 3 }}>
-              {bwdHasBall ? (
-                <span style={{ fontSize: 16 }}>🏈→</span>
-              ) : (
-                <span style={{ fontSize: 16 }}>←🏈</span>
-              )}
-            </button>
-            <div style={{ fontSize: 8, color: bwdHasBall ? '#e7b977' : '#aaa', fontWeight: 700 }}>
-              {bwdHasBall ? 'BWD OFF' : `${oppAbbr} OFF`}
-            </div>
-          </>
+          <div style={{ fontSize: 15, fontWeight: 900, color: '#e7b977' }}>Q{quarter}</div>
         )}
       </div>
-
       {/* OPP side */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: `linear-gradient(270deg, ${oppPrimary} 0%, ${oppPrimary} 40%, rgba(0,0,0,0.95) 100%)`, height: '100%', minWidth: 0, gap: 6 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'linear-gradient(270deg, #444 0%, #444 40%, rgba(0,0,0,0.95) 100%)', height: '100%', minWidth: 0, gap: 5 }}>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, flexShrink: 0 }}>{oppScore}</span>
         <span style={{ fontSize: 14, fontWeight: 900, color: '#aaa', letterSpacing: 1, textTransform: 'uppercase', flexShrink: 0, marginLeft: 'auto' }}>{oppAbbr}</span>
+        <button onClick={onFlipPossession} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 18, lineHeight: 1, opacity: bwdHasBall ? 0.12 : 1, flexShrink: 0 }}>🏈</button>
       </div>
     </div>
   );
 }
 
-// ── Roster Screen ─────────────────────────────────────────────────────────────
 function FBRosterScreen({ team, role }) {
   const [players, setPlayers] = useState([]);
   const [newName, setNewName] = useState('');
@@ -193,10 +172,8 @@ function FBRosterScreen({ team, role }) {
   const add = async () => {
     if (!newName.trim()) return;
     const { error } = await supabase.from('players').insert({
-      team_id: team.id,
-      name: newName.trim(),
-      number: newNumber.trim() || null,
-      position: newPos,
+      team_id: team.id, name: newName.trim(),
+      number: newNumber.trim() || null, position: newPos,
     });
     if (error) { alert('Error: ' + error.message); return; }
     setNewName(''); setNewNumber(''); setNewPos('QB');
@@ -204,7 +181,6 @@ function FBRosterScreen({ team, role }) {
   };
 
   const remove = async (id) => { await supabase.from('players').delete().eq('id', id); load(); };
-
   const updateField = async (id, field, value) => {
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
     await supabase.from('players').update({ [field]: value }).eq('id', id);
@@ -253,7 +229,6 @@ function FBRosterScreen({ team, role }) {
   );
 }
 
-// ── Opponents Screen ──────────────────────────────────────────────────────────
 function FBOpponentsScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [newName, setNewName] = useState('');
@@ -316,9 +291,9 @@ function FBOpponentsScreen({ team, role }) {
   );
 }
 
-// ── Box Score ─────────────────────────────────────────────────────────────────
 function FBBoxScore({ team, game, players, onClose }) {
   const plays = game.meta?.plays || [];
+  const oppAbbr = game.meta?.opponentAbbr || (game.meta?.opponentName || 'OPP').slice(0,3).toUpperCase();
 
   const playerRows = players.map(p => {
     const stats = game.player_stats?.[p.id] || {};
@@ -355,7 +330,9 @@ function FBBoxScore({ team, game, players, onClose }) {
         <div style={{ background: '#1a3a6b', color: '#fff', padding: '12px 16px', borderRadius: '8px 8px 0 0', marginBottom: 4 }}>
           <div style={{ fontSize: 10, color: '#c8a84b', letterSpacing: 1 }}>XOVR FOOTBALL · GAME GRADE REPORT</div>
           <div style={{ fontSize: 18, fontWeight: 900 }}>vs. {game.meta?.opponentName || 'OPP'}</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{game.meta?.date || ''} · {plays.length} plays · BWD {game.meta?.bwdScore || 0} – {game.meta?.oppScore || 0} {(game.meta?.opponentName || 'OPP').slice(0,4).toUpperCase()}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+            {game.meta?.date || ''} · {plays.length} plays · BWD {game.meta?.bwdScore || 0} – {game.meta?.oppScore || 0} {oppAbbr}
+          </div>
         </div>
         <div style={{ height: 3, background: '#c8a84b', marginBottom: 16 }} />
         {playerRows.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>No stats tagged yet.</div>}
@@ -434,7 +411,6 @@ function FBBoxScore({ team, game, players, onClose }) {
   );
 }
 
-// ── Game Tagger ───────────────────────────────────────────────────────────────
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -453,10 +429,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [showBoxScore, setShowBoxScore] = useState(false);
 
   const oppName = game.meta?.opponentName || 'OPP';
-  const oppAbbr = oppName.slice(0, 4).toUpperCase();
+  const oppAbbr = game.meta?.opponentAbbr || oppName.slice(0, 3).toUpperCase();
 
   useEffect(() => {
-    supabase.from('players').select('*').eq('team_id', team.id).order('created_at').then(({ data }) => { if (data) setPlayers(data); });
+    supabase.from('players').select('*').eq('team_id', team.id).order('created_at')
+      .then(({ data }) => { if (data) setPlayers(data); });
   }, [team.id]);
 
   const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
@@ -469,8 +446,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       playerName: selectedPlayerRecord?.name || '?',
       playerNumber: selectedPlayerRecord?.number || '?',
       playerPos: selectedPlayerRecord?.position || '?',
-      statKey: key,
-      statValue: value,
+      statKey: key, statValue: value,
       down, distance, playType, fieldSide, yardLine,
       possession, oppAbbr,
       timestamp: new Date().toISOString(),
@@ -481,15 +457,12 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       return { ...prev, [selectedPlayer]: { ...cur, [key]: (cur[key] || 0) + 1 } };
     });
 
-    // Auto score on TD
-    if (key === 'TD' || key === 'DefTD' || key === 'RetTD') {
-      if (possession === 'BWD' || key === 'DefTD') {
-        if (key === 'DefTD') setBwdScore(s => s + 6);
-        else setBwdScore(s => s + 6);
-      } else {
-        setOppScore(s => s + 6);
-      }
+    // Auto score
+    if (key === 'TD' || key === 'RetTD') {
+      if (possession === 'BWD') setBwdScore(s => s + 6);
+      else setOppScore(s => s + 6);
     }
+    if (key === 'DefTD') setBwdScore(s => s + 6);
     if (key === 'FGM') {
       if (possession === 'BWD') setBwdScore(s => s + 3);
       else setOppScore(s => s + 3);
@@ -500,11 +473,9 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     const isDefense = DEFENSE_POS.includes(playerPos);
     const isOffense = OFFENSE_POS.includes(playerPos);
     if (isDefense && BWD_TURNOVER_KEYS.has(key)) {
-      setPossession('BWD');
-      setDown(1); setDistance(10);
+      setPossession('BWD'); setDown(1); setDistance(10);
     } else if (isOffense && OPP_TURNOVER_KEYS.has(key)) {
-      setPossession('OPP');
-      setDown(1); setDistance(10);
+      setPossession('OPP'); setDown(1); setDistance(10);
     }
 
     setSelectedPlayer(null);
@@ -520,15 +491,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     });
   };
 
-  const getMeta = () => ({
-    ...game.meta, plays, possession, quarter, bwdScore, oppScore,
-  });
+  const getMeta = () => ({ ...game.meta, plays, possession, quarter, bwdScore, oppScore });
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: playerStats,
-      meta: getMeta(),
-      updated_at: new Date().toISOString(),
+      player_stats: playerStats, meta: getMeta(), updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (error) alert('Save error: ' + error.message);
     else onSaved();
@@ -536,10 +503,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
-      player_stats: playerStats,
-      meta: getMeta(),
-      is_final: true,
-      updated_at: new Date().toISOString(),
+      player_stats: playerStats, meta: getMeta(), is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowBoxScore(true); }
     else alert('Save error: ' + error.message);
@@ -552,21 +516,14 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
   return (
     <div style={{ color: C.text }}>
-      {/* Scoreboard */}
       <FootballScoreboard
-        bwdScore={bwdScore}
-        oppScore={oppScore}
-        oppName={oppName}
-        possession={possession}
-        quarter={quarter}
-        onFlipPossession={() => {
-          setPossession(p => p === 'BWD' ? 'OPP' : 'BWD');
-          setDown(1); setDistance(10);
-        }}
+        bwdScore={bwdScore} oppScore={oppScore} oppAbbr={oppAbbr}
+        possession={possession} quarter={quarter}
+        onFlipPossession={() => { setPossession(p => p === 'BWD' ? 'OPP' : 'BWD'); setDown(1); setDistance(10); }}
         isFinal={false}
       />
 
-      {/* Score editors + Quarter */}
+      {/* Score + Quarter row */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
         <div style={{ flex: 1, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 10, color: C.gold, fontWeight: 700 }}>BWD</span>
@@ -574,8 +531,8 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           <span style={{ fontSize: 16, fontWeight: 900, color: C.text, minWidth: 24, textAlign: 'center' }}>{bwdScore}</span>
           <button onClick={() => setBwdScore(s => s+1)} style={{ width: 24, height: 24, borderRadius: 5, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
         </div>
-        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700 }}>Q</span>
+        <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginRight: 2 }}>Q</span>
           {[1,2,3,4].map(q => (
             <button key={q} onClick={() => setQuarter(q)} style={{ width: 24, height: 24, borderRadius: 5, fontWeight: 900, fontSize: 12, cursor: 'pointer', background: quarter === q ? C.gold : C.navyDark, color: quarter === q ? C.textDark : C.text, border: `1px solid ${quarter === q ? C.gold : C.border}` }}>{q}</button>
           ))}
@@ -599,7 +556,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
         <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Play Info</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {/* Down */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DOWN</div>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -608,7 +564,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               ))}
             </div>
           </div>
-          {/* Distance */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>DIST</div>
             <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -617,7 +572,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               <button onClick={() => setDistance(d => d+1)} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
             </div>
           </div>
-          {/* Field side */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>SIDE</div>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -625,7 +579,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               <button onClick={() => setFieldSide(oppAbbr)} style={{ padding: '5px 7px', borderRadius: 6, fontWeight: 700, fontSize: 10, cursor: 'pointer', background: fieldSide === oppAbbr ? C.gold : C.navyDark, color: fieldSide === oppAbbr ? C.textDark : C.text, border: `1px solid ${fieldSide === oppAbbr ? C.gold : C.border}` }}>{oppAbbr}</button>
             </div>
           </div>
-          {/* Yard line */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>YD LINE</div>
             <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -634,7 +587,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               <button onClick={() => setYardLine(y => Math.min(50, y+1))} style={{ width: 28, height: 28, borderRadius: 6, background: C.navyDark, border: `1px solid ${C.border}`, color: C.text, fontWeight: 900, cursor: 'pointer' }}>+</button>
             </div>
           </div>
-          {/* Play type */}
           <div>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 4 }}>TYPE</div>
             <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '6px 7px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11 }}>
@@ -642,7 +594,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
             </select>
           </div>
         </div>
-        {/* Summary */}
         <div style={{ marginTop: 8, padding: '4px 8px', background: 'rgba(200,168,75,0.1)', borderRadius: 6, fontSize: 11, color: C.gold, fontWeight: 700 }}>
           {possession === 'BWD' ? '🏈 BWD OFF' : `🏈 ${oppAbbr} OFF`} · {down}&{distance} · {fieldSide} {yardLine} · {playType}
         </div>
@@ -717,7 +668,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, width: 300 }}>
             <div style={{ fontWeight: 700, marginBottom: 10, color: C.text }}>End this game?</div>
-            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>This marks the game as final and shows the box score.</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Marks as final and shows box score.</div>
             <button onClick={endGame} style={{ width: '100%', padding: 10, background: C.red, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Yes, end game</button>
             <button onClick={() => setConfirmingEnd(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${C.border}`, color: C.text, borderRadius: 8, cursor: 'pointer' }}>Not yet</button>
           </div>
@@ -727,7 +678,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   );
 }
 
-// ── Game Screen ───────────────────────────────────────────────────────────────
 function FBGameScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [games, setGames] = useState([]);
@@ -767,7 +717,11 @@ function FBGameScreen({ team, role }) {
     const { data, error } = await supabase.from('games').insert({
       season_id: currentSeason.id,
       opponent_id: oppId,
-      meta: { opponentName: opp?.name || 'OPP', date, plays: [], possession: 'BWD', quarter: 1, bwdScore: 0, oppScore: 0 },
+      meta: {
+        opponentName: opp?.name || 'OPP',
+        opponentAbbr: opp?.abbr || (opp?.name || 'OPP').slice(0, 3).toUpperCase(),
+        date, plays: [], possession: 'BWD', quarter: 1, bwdScore: 0, oppScore: 0,
+      },
       player_stats: {},
     }).select().single();
     if (!error && data) setActiveGame(data);
@@ -811,14 +765,18 @@ function FBGameScreen({ team, role }) {
       {games.map(g => {
         const bwd = g.meta?.bwdScore ?? 0;
         const opp = g.meta?.oppScore ?? 0;
+        const gOppAbbr = g.meta?.opponentAbbr || (g.meta?.opponentName || 'OPP').slice(0,3).toUpperCase();
         return (
           <div key={g.id} style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div>
-                <div style={{ fontWeight: 700, color: C.text }}>vs. {g.opponents?.name || g.meta?.opponentName || '—'}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>
-                  {g.meta?.date || ''} · BWD {bwd} – {opp} {(g.meta?.opponentName || 'OPP').slice(0,4).toUpperCase()} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
-                </div>
+            <div style={{ marginBottom: 8 }}>
+              <FootballScoreboard
+                bwdScore={bwd} oppScore={opp} oppAbbr={gOppAbbr}
+                possession={g.meta?.possession || 'BWD'} quarter={g.meta?.quarter || 1}
+                onFlipPossession={() => {}}
+                isFinal={!!g.is_final}
+              />
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                {g.meta?.date || ''} · {(g.meta?.plays || []).length} plays · {g.is_final ? '✅ Final' : '🔴 Live'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -844,7 +802,6 @@ function FBGameScreen({ team, role }) {
   );
 }
 
-// ── Seasons Screen ────────────────────────────────────────────────────────────
 function FBSeasonsScreen({ team, role }) {
   const [seasons, setSeasons] = useState([]);
   const [newName, setNewName] = useState('');
@@ -884,7 +841,6 @@ function FBSeasonsScreen({ team, role }) {
   );
 }
 
-// ── Main View ─────────────────────────────────────────────────────────────────
 export function FootballTeamView({ team, onBack }) {
   const [tab, setTab] = useState('game');
   const FB_LOGO = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
