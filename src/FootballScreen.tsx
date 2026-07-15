@@ -142,13 +142,11 @@ const C = {
   statNegBg: 'rgba(127,29,29,0.3)', statNegBorder: '#b91c1c', statNegText: '#f87171',
 };
 
-// ── TV Scoreboard ─────────────────────────────────────────────────────────────
 function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, down, distance, fieldSide, yardLine, clockMin, clockSec, onClockClick, isFinal }) {
   const bwdHasBall = possession === 'BWD';
   const downSuffix = down === 1 ? 'ST' : down === 2 ? 'ND' : down === 3 ? 'RD' : 'TH';
   return (
     <div style={{ marginBottom: 8, borderRadius: 10, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.6)' }}>
-      {/* Score row */}
       <div style={{ display: 'flex', alignItems: 'stretch', height: 54 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', background: 'linear-gradient(90deg, #1a3a6b 55%, #0a1628 100%)' }}>
           {bwdHasBall && !isFinal && <span style={{ fontSize: 15 }}>🏈</span>}
@@ -162,8 +160,7 @@ function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, 
           {!bwdHasBall && !isFinal && <span style={{ fontSize: 15 }}>🏈</span>}
         </div>
       </div>
-      {/* Info bar */}
-      <div style={{ background: '#111', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 0 }}>
+      <div style={{ background: '#111', padding: '5px 12px', display: 'flex', alignItems: 'center' }}>
         {isFinal ? (
           <span style={{ fontSize: 12, fontWeight: 900, color: '#ff3b30', letterSpacing: 2, margin: '0 auto' }}>FINAL</span>
         ) : (
@@ -184,7 +181,6 @@ function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, 
   );
 }
 
-// ── Clock Edit Modal ──────────────────────────────────────────────────────────
 function ClockModal({ clockMin, clockSec, quarter, onSave, onClose }) {
   const [min, setMin] = useState(clockMin);
   const [sec, setSec] = useState(clockSec);
@@ -194,7 +190,7 @@ function ClockModal({ clockMin, clockSec, quarter, onSave, onClose }) {
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, width: 280 }}>
         <div style={{ fontWeight: 700, color: C.text, marginBottom: 14, fontSize: 14 }}>Set Clock</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-          <input type="number" value={min} min={0} max={99} onChange={e => setMin(Math.max(0, parseInt(e.target.value)||0))}
+          <input type="number" value={min} min={0} max={99} onChange={e => setMin(Math.max(0,parseInt(e.target.value)||0))}
             style={{ width: 64, padding: 10, fontSize: 20, textAlign: 'center', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
           <span style={{ fontSize: 20, color: C.text }}>:</span>
           <input type="number" value={sec} min={0} max={59} onChange={e => setSec(Math.max(0,Math.min(59,parseInt(e.target.value)||0)))}
@@ -203,24 +199,21 @@ function ClockModal({ clockMin, clockSec, quarter, onSave, onClose }) {
         <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>QUARTER</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {[1,2,3,4].map(n => (
-            <button key={n} onClick={() => setQ(n)} style={{ flex: 1, padding: 8, borderRadius: 7, fontWeight: 900, background: q === n ? C.gold : C.navyDark, color: q === n ? C.textDark : C.text, border: `1px solid ${q === n ? C.gold : C.border}`, cursor: 'pointer' }}>{n}</button>
+            <button key={n} onClick={() => setQ(n)} style={{ flex: 1, padding: 8, borderRadius: 7, fontWeight: 900, background: q===n?C.gold:C.navyDark, color: q===n?C.textDark:C.text, border: `1px solid ${q===n?C.gold:C.border}`, cursor: 'pointer' }}>{n}</button>
           ))}
         </div>
-        <button onClick={() => onSave(min, sec, q)} style={{ width: '100%', padding: 10, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, cursor: 'pointer', marginBottom: 8 }}>Set Clock</button>
+        <button onClick={() => onSave(min,sec,q)} style={{ width: '100%', padding: 10, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, cursor: 'pointer', marginBottom: 8 }}>Set Clock</button>
         <button onClick={onClose} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer' }}>Cancel</button>
       </div>
     </div>
   );
 }
 
-// ── Lineup Picker ─────────────────────────────────────────────────────────────
-function LineupPicker({ players, unit, existingLineup, onConfirm, onSkip }) {
+function LineupPicker({ players, unit, existingLineup, onConfirm }) {
   const isOffense = unit === 'offense';
   const eligible = players.filter(p => isOffense ? OFFENSE_POS.includes(p.position||'') : DEFENSE_POS.includes(p.position||''));
   const [selected, setSelected] = useState(existingLineup || []);
-
   const toggle = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 11 ? [...prev, id] : prev);
-
   const posOrder = isOffense ? ['OL','QB','RB','WR','TE'] : ['DL','LB','DB'];
   const groups = {};
   eligible.forEach(p => { const pos = p.position||'Other'; if (!groups[pos]) groups[pos]=[]; groups[pos].push(p); });
@@ -243,7 +236,7 @@ function LineupPicker({ players, unit, existingLineup, onConfirm, onSkip }) {
                   const sel = selected.includes(p.id);
                   return (
                     <button key={p.id} onClick={() => toggle(p.id)}
-                      style={{ padding: '7px 11px', borderRadius: 7, border: sel ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: sel ? C.goldLight : C.navyDark, color: sel ? C.gold : C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      style={{ padding: '7px 11px', borderRadius: 7, border: sel?`2px solid ${C.gold}`:`1px solid ${C.border}`, background: sel?C.goldLight:C.navyDark, color: sel?C.gold:C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
                       #{p.number||'—'} {p.name.split(' ')[0]}
                     </button>
                   );
@@ -254,18 +247,18 @@ function LineupPicker({ players, unit, existingLineup, onConfirm, onSkip }) {
         })}
         {eligible.length === 0 && (
           <div style={{ color: C.muted, fontSize: 13, textAlign: 'center', padding: 20 }}>
-            No {isOffense ? 'offensive' : 'defensive'} players on roster yet. Add them in RSTR tab.
+            No {isOffense ? 'offensive' : 'defensive'} players on roster yet.
           </div>
         )}
       </div>
-      <button onClick={() => onConfirm(selected)} style={{ width: '100%', padding: 12, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, fontSize: 14, cursor: 'pointer', marginBottom: 8 }}>
-        {selected.length > 0 ? `Confirm ${isOffense ? 'Offense' : 'Defense'} (${selected.length}) →` : `Skip — Set ${isOffense ? 'Offense' : 'Defense'} Later`}
+      <button onClick={() => onConfirm(selected)}
+        style={{ width: '100%', padding: 12, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+        {selected.length > 0 ? `Confirm ${isOffense?'Offense':'Defense'} (${selected.length}) →` : `Skip — Set ${isOffense?'Offense':'Defense'} Later`}
       </button>
     </div>
   );
 }
 
-// ── Sub Modal ─────────────────────────────────────────────────────────────────
 function SubModal({ players, currentLineup, unit, onConfirm, onClose }) {
   const isOffense = unit === 'offense';
   const eligible = players.filter(p => isOffense ? OFFENSE_POS.includes(p.position||'') : DEFENSE_POS.includes(p.position||''));
@@ -279,7 +272,7 @@ function SubModal({ players, currentLineup, unit, onConfirm, onClose }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 300, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: C.navyMid, borderBottom: `1px solid ${C.border}` }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>✕ Cancel</button>
-        <div style={{ color: C.gold, fontWeight: 800, fontSize: 13 }}>{isOffense ? '⚔️ OFF' : '🛡️ DEF'} Lineup · {lineup.length}/11</div>
+        <div style={{ color: C.gold, fontWeight: 800, fontSize: 13 }}>{isOffense?'⚔️ OFF':'🛡️ DEF'} Lineup · {lineup.length}/11</div>
         <button onClick={() => onConfirm(lineup)} style={{ padding: '6px 14px', background: C.gold, border: 'none', borderRadius: 7, color: C.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Done</button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
@@ -294,7 +287,7 @@ function SubModal({ players, currentLineup, unit, onConfirm, onClose }) {
                   const inLineup = lineup.includes(p.id);
                   return (
                     <button key={p.id} onClick={() => toggle(p.id)}
-                      style={{ padding: '8px 12px', borderRadius: 7, border: inLineup ? `2px solid ${C.gold}` : `1px solid ${C.border}`, background: inLineup ? C.goldLight : C.navyDark, color: inLineup ? C.gold : C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      style={{ padding: '8px 12px', borderRadius: 7, border: inLineup?`2px solid ${C.gold}`:`1px solid ${C.border}`, background: inLineup?C.goldLight:C.navyDark, color: inLineup?C.gold:C.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
                       #{p.number||'—'} {p.name.split(' ')[0]}
                     </button>
                   );
@@ -308,7 +301,6 @@ function SubModal({ players, currentLineup, unit, onConfirm, onClose }) {
   );
 }
 
-// ── Roster Screen ─────────────────────────────────────────────────────────────
 function FBRosterScreen({ team, role }) {
   const [players, setPlayers] = useState([]);
   const [newName, setNewName] = useState('');
@@ -322,13 +314,13 @@ function FBRosterScreen({ team, role }) {
 
   const add = async () => {
     if (!newName.trim()) return;
-    const { error } = await supabase.from('players').insert({ team_id: team.id, name: newName.trim(), number: newNumber.trim() || null, position: newPos });
-    if (error) { alert('Error: ' + error.message); return; }
+    const { error } = await supabase.from('players').insert({ team_id: team.id, name: newName.trim(), number: newNumber.trim()||null, position: newPos });
+    if (error) { alert('Error: '+error.message); return; }
     setNewName(''); setNewNumber(''); setNewPos('QB'); load();
   };
   const remove = async (id) => { await supabase.from('players').delete().eq('id', id); load(); };
   const updateField = async (id, field, value) => {
-    setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+    setPlayers(prev => prev.map(p => p.id===id ? { ...p, [field]: value } : p));
     await supabase.from('players').update({ [field]: value }).eq('id', id);
   };
 
@@ -370,12 +362,11 @@ function FBRosterScreen({ team, role }) {
           )}
         </div>
       ))}
-      {players.length === 0 && <p style={{ color: C.muted }}>No players yet. Add them above.</p>}
+      {players.length === 0 && <p style={{ color: C.muted }}>No players yet.</p>}
     </div>
   );
 }
 
-// ── Opponents Screen ──────────────────────────────────────────────────────────
 function FBOpponentsScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [newName, setNewName] = useState('');
@@ -393,7 +384,7 @@ function FBOpponentsScreen({ team, role }) {
   };
   const remove = async (id) => { await supabase.from('opponents').delete().eq('id', id); load(); };
   const updateField = async (id, field, value) => {
-    setOpponents(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
+    setOpponents(prev => prev.map(o => o.id===id ? { ...o, [field]: value } : o));
     await supabase.from('opponents').update({ [field]: value }).eq('id', id);
   };
 
@@ -438,7 +429,6 @@ function FBOpponentsScreen({ team, role }) {
   );
 }
 
-// ── Box Score ─────────────────────────────────────────────────────────────────
 function FBBoxScore({ team, game, players, onClose }) {
   const snaps = game.meta?.snaps || [];
   const oppAbbr = game.meta?.opponentAbbr || (game.meta?.opponentName||'OPP').slice(0,3).toUpperCase();
@@ -460,7 +450,7 @@ function FBBoxScore({ team, game, players, onClose }) {
     const win = window.open('','_blank');
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html><head><title>Football Box Score</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:sans-serif;color:#1a1a1a;padding:20px;}table{width:100%;border-collapse:collapse;margin-bottom:16px;}th{background:#1a3a6b;color:#fff;padding:5px 4px;text-align:center;font-size:9px;}td{padding:4px;text-align:center;border-bottom:1px solid #dde;font-size:9px;}tr:nth-child(even){background:#f0f4fa;}@page{size:landscape;margin:8mm;}</style></head><body>${content}</body></html>`);
-    win.document.close(); win.focus(); setTimeout(()=>{win.print();win.close();},500);
+    win.document.close(); win.focus(); setTimeout(()=>{ win.print(); win.close(); },500);
   };
 
   return (
@@ -487,7 +477,7 @@ function FBBoxScore({ team, game, players, onClose }) {
                     <th style={{ padding: '5px 6px', textAlign: 'left' }}>#</th>
                     <th style={{ padding: '5px 6px', textAlign: 'left' }}>Player</th>
                     <th style={{ padding: '5px 6px' }}>Snaps</th>
-                    {rows[0].statDefs.map(d => <th key={d.key} style={{ padding: '5px 4px', color: d.value >= 0 ? '#4ade80' : '#f87171' }}>{d.abbr}</th>)}
+                    {rows[0].statDefs.map(d => <th key={d.key} style={{ padding: '5px 4px', color: d.value>=0?'#4ade80':'#f87171' }}>{d.abbr}</th>)}
                     <th style={{ padding: '5px 6px', color: '#c8a84b' }}>EFF</th>
                   </tr>
                 </thead>
@@ -512,15 +502,13 @@ function FBBoxScore({ team, game, players, onClose }) {
             {snaps.map((snap,si) => (
               <div key={si} style={{ marginBottom: 10, borderLeft: '3px solid #1a3a6b', paddingLeft: 10 }}>
                 <div style={{ fontWeight: 800, fontSize: 10, color: '#1a3a6b', marginBottom: 3 }}>
-                  Play {si+1} · {snap.possession==='BWD'?'🏈 BWD OFF':`🏈 ${oppAbbr} OFF`} · {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType} · Q{snap.quarter}
+                  Play {si+1} · {snap.possession==='BWD'?'BWD OFF':'OPP OFF'} · {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.hash||'M'} Hash · {snap.playDirection||'—'} · {snap.playType} · {snap.gainLoss>0?'+':''}{snap.gainLoss||0} yds · Q{snap.quarter} {String(snap.clockMin||0).padStart(2,'0')}:{String(snap.clockSec||0).padStart(2,'0')}
                 </div>
                 {(snap.tags||[]).map((t,ti) => {
-                  const statDef = t.teamTag
-                    ? { value: t.statValue || 0 }
-                    : getStatsForPosition(t.playerPos).find(d => d.key===t.statKey);
+                  const statDef = t.teamTag ? { value: t.statValue||0 } : getStatsForPosition(t.playerPos).find(d => d.key===t.statKey);
                   return (
                     <div key={ti} style={{ fontSize: 9, color: (statDef?.value||0)>=0?'#16a34a':'#dc2626', paddingLeft: 8, marginBottom: 2 }}>
-                      {t.teamTag ? `[${t.teamTag}] ${t.statKey}` : `#${t.playerNumber} ${t.playerName} (${t.playerPos})`} — {t.statKey} {(statDef?.value||0)>=0?'+':''}{statDef?.value||0}
+                      {t.teamTag?`[${t.teamTag}]`:`#${t.playerNumber} ${t.playerName} (${t.playerPos})`} — {t.statKey} {(statDef?.value||0)>=0?'+':''}{statDef?.value||0}
                     </div>
                   );
                 })}
@@ -534,10 +522,9 @@ function FBBoxScore({ team, game, players, onClose }) {
   );
 }
 
-// ── Game Tagger ───────────────────────────────────────────────────────────────
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
-  const [selectedPlayer, setSelectedPlayer] = useState(null); // player id or 'BWD' or 'OPP'
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [snaps, setSnaps] = useState(game.meta?.snaps || []);
   const [currentTags, setCurrentTags] = useState([]);
   const [playerStats, setPlayerStats] = useState(game.player_stats || {});
@@ -546,6 +533,9 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [playType, setPlayType] = useState('Run');
   const [fieldSide, setFieldSide] = useState('BWD');
   const [yardLine, setYardLine] = useState(20);
+  const [hash, setHash] = useState('M');
+  const [playDirection, setPlayDirection] = useState('Middle');
+  const [gainLoss, setGainLoss] = useState(0);
   const [possession, setPossession] = useState(game.meta?.possession || 'BWD');
   const [quarter, setQuarter] = useState(game.meta?.quarter || 1);
   const [clockMin, setClockMin] = useState(game.meta?.clockMin ?? 12);
@@ -569,43 +559,31 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       .then(({ data }) => { if (data) setPlayers(data); });
   }, [team.id]);
 
-  // Trigger lineup setup once players load
-useEffect(() => {
-  if (players.length > 0 && offenseLineup === null && defenseLineup === null && lineupStep === null) {
-    setLineupStep('offense');
-  }
-}, [players.length, lineupStep]);
+  useEffect(() => {
+    if (players.length > 0 && offenseLineup === null && defenseLineup === null && lineupStep === null) {
+      setLineupStep('offense');
+    }
+  }, [players.length, lineupStep]);
 
-  const isSTPlay = ST_PLAY_TYPES.has(playType);
   const offenseOnField = players.filter(p => (offenseLineup||[]).includes(p.id));
   const defenseOnField = players.filter(p => (defenseLineup||[]).includes(p.id));
-  const allOnField = [...offenseOnField, ...defenseOnField];
 
- const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
-const isTeamTag = selectedPlayer === 'BWD' || selectedPlayer === 'OPP';
-const bwdTeamStatDefs = possession === 'BWD' ? BWD_TEAM_STATS : DEFENSE_STATS;
-const oppTeamStatDefs = possession === 'BWD' ? DEFENSE_STATS : OPP_TEAM_STATS;
-const teamStatDefs = selectedPlayer === 'BWD' ? bwdTeamStatDefs : oppTeamStatDefs;
-const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position||'LB') : DEFENSE_STATS);
+  const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
+  const isTeamTag = selectedPlayer === 'BWD' || selectedPlayer === 'OPP';
+  const bwdTeamStatDefs = possession === 'BWD' ? BWD_TEAM_STATS : DEFENSE_STATS;
+  const oppTeamStatDefs = possession === 'BWD' ? DEFENSE_STATS : OPP_TEAM_STATS;
+  const teamStatDefs = selectedPlayer === 'BWD' ? bwdTeamStatDefs : oppTeamStatDefs;
+  const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position||'LB') : DEFENSE_STATS);
 
   const applyScore = (key, forBWD) => {
-    if (key === 'TD' || key === 'DefTD' || key === 'RetTD') {
-      if (forBWD) setBwdScore(s => s+6); else setOppScore(s => s+6);
-    }
-    if (key === 'PAT') {
-      if (forBWD) setBwdScore(s => s+1); else setOppScore(s => s+1);
-    }
-    if (key === 'FGM') {
-      if (forBWD) setBwdScore(s => s+3); else setOppScore(s => s+3);
-    }
-    if (key === 'Safety') {
-      if (forBWD) setBwdScore(s => s+2); else setOppScore(s => s+2);
-    }
+    if (key==='TD'||key==='DefTD'||key==='RetTD') { if (forBWD) setBwdScore(s=>s+6); else setOppScore(s=>s+6); }
+    if (key==='PAT') { if (forBWD) setBwdScore(s=>s+1); else setOppScore(s=>s+1); }
+    if (key==='FGM') { if (forBWD) setBwdScore(s=>s+3); else setOppScore(s=>s+3); }
+    if (key==='Safety') { if (forBWD) setBwdScore(s=>s+2); else setOppScore(s=>s+2); }
   };
 
   const tagStat = (key, value) => {
     if (!selectedPlayer) return;
-
     if (isTeamTag) {
       const forBWD = selectedPlayer === 'BWD';
       const tag = { teamTag: selectedPlayer, statKey: key, statValue: value };
@@ -614,49 +592,44 @@ const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForP
       setSelectedPlayer(null);
       return;
     }
-
     const tag = {
       playerId: selectedPlayer,
-      playerName: selectedPlayerRecord?.name || '?',
-      playerNumber: selectedPlayerRecord?.number || '?',
-      playerPos: selectedPlayerRecord?.position || '?',
+      playerName: selectedPlayerRecord?.name||'?',
+      playerNumber: selectedPlayerRecord?.number||'?',
+      playerPos: selectedPlayerRecord?.position||'?',
       statKey: key, statValue: value,
     };
     setCurrentTags(prev => [...prev, tag]);
     setPlayerStats(prev => {
-      const cur = prev[selectedPlayer] || {};
+      const cur = prev[selectedPlayer]||{};
       return { ...prev, [selectedPlayer]: { ...cur, [key]: (cur[key]||0)+1 } };
     });
-
     const forBWD = possession === 'BWD';
     applyScore(key, forBWD);
-
-    const playerPos = selectedPlayerRecord?.position || '';
-    if (DEFENSE_POS.includes(playerPos) && BWD_TURNOVER_KEYS.has(key)) {
-      setPossession('BWD'); setDown(1); setDistance(10);
-    } else if (OFFENSE_POS.includes(playerPos) && OPP_TURNOVER_KEYS.has(key)) {
-      setPossession('OPP'); setDown(1); setDistance(10);
-    }
+    const playerPos = selectedPlayerRecord?.position||'';
+    if (DEFENSE_POS.includes(playerPos) && BWD_TURNOVER_KEYS.has(key)) { setPossession('BWD'); setDown(1); setDistance(10); }
+    else if (OFFENSE_POS.includes(playerPos) && OPP_TURNOVER_KEYS.has(key)) { setPossession('OPP'); setDown(1); setDistance(10); }
     setSelectedPlayer(null);
   };
 
   const undoLastTag = () => {
-    if (currentTags.length === 0) return;
+    if (currentTags.length===0) return;
     const last = currentTags[currentTags.length-1];
     setCurrentTags(prev => prev.slice(0,-1));
     if (!last.teamTag && last.playerId) {
       setPlayerStats(prev => {
-        const cur = prev[last.playerId] || {};
+        const cur = prev[last.playerId]||{};
         return { ...prev, [last.playerId]: { ...cur, [last.statKey]: Math.max(0,(cur[last.statKey]||0)-1) } };
       });
     }
   };
 
   const commitSnap = () => {
-    if (currentTags.length === 0) return;
+    if (currentTags.length===0) return;
     const snap = {
       snapNumber: snaps.length+1,
       down, distance, playType, fieldSide, yardLine,
+      hash, playDirection, gainLoss,
       possession, quarter, clockMin, clockSec, oppAbbr,
       tags: currentTags,
       timestamp: new Date().toISOString(),
@@ -667,13 +640,13 @@ const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForP
   };
 
   const undoLastSnap = () => {
-    if (snaps.length === 0) return;
+    if (snaps.length===0) return;
     const lastSnap = snaps[snaps.length-1];
     setPlayerStats(prev => {
       const next = { ...prev };
       (lastSnap.tags||[]).forEach(t => {
         if (!t.teamTag && t.playerId) {
-          const cur = next[t.playerId] || {};
+          const cur = next[t.playerId]||{};
           next[t.playerId] = { ...cur, [t.statKey]: Math.max(0,(cur[t.statKey]||0)-1) };
         }
       });
@@ -686,39 +659,32 @@ const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForP
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({ player_stats: playerStats, meta: getMeta(), updated_at: new Date().toISOString() }).eq('id', game.id);
-    if (error) alert('Save error: ' + error.message); else onSaved();
+    if (error) alert('Save error: '+error.message); else onSaved();
   };
 
   const endGame = async () => {
     const { error } = await supabase.from('games').update({ player_stats: playerStats, meta: getMeta(), is_final: true, updated_at: new Date().toISOString() }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowBoxScore(true); }
-    else alert('Save error: ' + error.message);
+    else alert('Save error: '+error.message);
   };
 
   if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: getMeta() }} players={players} onClose={() => onSaved()} />;
 
-  // Lineup setup
-if (lineupStep === 'offense') return (
-  <div style={{ color: C.text }}>
-    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 1 of 2 — Pick your starting offensive 11</div>
-    <LineupPicker key="offense" players={players} unit="offense" existingLineup={offenseLineup||[]}
-      onConfirm={(ids) => {
-        setOffenseLineup(ids);
-        setTimeout(() => setLineupStep('defense'), 0);
-      }} />
-  </div>
-);
+  if (lineupStep === 'offense') return (
+    <div style={{ color: C.text }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 1 of 2 — Pick your starting offensive 11</div>
+      <LineupPicker key="offense" players={players} unit="offense" existingLineup={offenseLineup||[]}
+        onConfirm={(ids) => { setOffenseLineup(ids); setTimeout(() => setLineupStep('defense'), 0); }} />
+    </div>
+  );
 
-if (lineupStep === 'defense') return (
-  <div style={{ color: C.text }}>
-    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 2 of 2 — Pick your starting defensive 11</div>
-    <LineupPicker key="defense" players={players} unit="defense" existingLineup={defenseLineup||[]}
-      onConfirm={(ids) => {
-        setDefenseLineup(ids);
-        setTimeout(() => setLineupStep(null), 0);
-      }} />
-  </div>
-);
+  if (lineupStep === 'defense') return (
+    <div style={{ color: C.text }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 2 of 2 — Pick your starting defensive 11</div>
+      <LineupPicker key="defense" players={players} unit="defense" existingLineup={defenseLineup||[]}
+        onConfirm={(ids) => { setDefenseLineup(ids); setTimeout(() => setLineupStep(null), 0); }} />
+    </div>
+  );
 
   if (showSubs) return (
     <SubModal players={players} currentLineup={showSubs==='offense'?(offenseLineup||[]):(defenseLineup||[])} unit={showSubs}
@@ -729,6 +695,7 @@ if (lineupStep === 'defense') return (
   const PLAY_TYPES = ['Run','Pass','Punt','Kick','FG','PAT'];
   const distOptions = Array.from({length:75},(_,i)=>i+1);
   const ydOptions = Array.from({length:50},(_,i)=>i+1);
+  const gainLossOptions = Array.from({length:201},(_,i)=>i-100);
 
   return (
     <div style={{ color: C.text }}>
@@ -746,11 +713,19 @@ if (lineupStep === 'defense') return (
         onSave={(m,s,q) => { setClockMin(m); setClockSec(s); setQuarter(q); setShowClock(false); }}
         onClose={() => setShowClock(false)} />}
 
-      {/* Possession flip */}
+      {/* Play counter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 12px', marginBottom: 8 }}>
+        <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>▶ PLAY</span>
+        <span style={{ fontSize: 22, fontWeight: 900, color: C.gold, letterSpacing: -1 }}>{snaps.length+1}</span>
+        {currentTags.length > 0 && <span style={{ fontSize: 10, color: C.green, fontWeight: 700, marginLeft: 4 }}>● {currentTags.length} tag{currentTags.length!==1?'s':''} in progress</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: C.muted }}>{snaps.length} completed</span>
+      </div>
+
+      {/* Possession flip + actions */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <button onClick={() => { setPossession(p => p==='BWD'?'OPP':'BWD'); setDown(1); setDistance(10); }}
           style={{ flex: 1, padding: '7px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}>
-          🏈 Flip Possession
+          🏈 Flip
         </button>
         <button onClick={() => setShowBoxScore(true)} style={{ flex: 1, padding: '7px 0', background: 'rgba(255,255,255,0.07)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>📊 Box</button>
         <button onClick={saveGame} style={{ flex: 1, padding: '7px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>💾 Save</button>
@@ -788,9 +763,34 @@ if (lineupStep === 'defense') return (
             </select>
           </div>
           <div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Hash</div>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {['L','M','R'].map(h => (
+                <button key={h} onClick={() => setHash(h)} style={{ width: 26, height: 28, borderRadius: 6, fontWeight: 900, fontSize: 11, cursor: 'pointer', background: hash===h?C.gold:C.navyDark, color: hash===h?C.textDark:C.text, border: `1px solid ${hash===h?C.gold:C.border}` }}>{h}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Dir</div>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {['←','↑','→'].map((arrow,i) => {
+                const dir = ['Left','Middle','Right'][i];
+                return (
+                  <button key={dir} onClick={() => setPlayDirection(dir)} style={{ width: 26, height: 28, borderRadius: 6, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: playDirection===dir?C.gold:C.navyDark, color: playDirection===dir?C.textDark:C.text, border: `1px solid ${playDirection===dir?C.gold:C.border}` }}>{arrow}</button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Type</div>
             <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, width: 58 }}>
               {PLAY_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Gain/Loss</div>
+            <select value={gainLoss} onChange={e => setGainLoss(Number(e.target.value))} style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: gainLoss>0?C.statPosText:gainLoss<0?C.statNegText:C.muted, fontSize: 13, fontWeight: 900, width: 64 }}>
+              {gainLossOptions.map(n => <option key={n} value={n}>{n>0?'+'+n:n}</option>)}
             </select>
           </div>
         </div>
@@ -800,7 +800,7 @@ if (lineupStep === 'defense') return (
       <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
         <button onClick={() => setShowSubs('offense')} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>⚔️ OFF Sub</button>
         <button onClick={() => setShowSubs('defense')} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>🛡️ DEF Sub</button>
-        <button onClick={() => setLineupStep('offense')} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>↺ Reset</button>
+        <button onClick={() => { setOffenseLineup(null); setDefenseLineup(null); setTimeout(() => setLineupStep('offense'), 0); }} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>↺ Reset</button>
       </div>
 
       {/* Current snap */}
@@ -818,7 +818,7 @@ if (lineupStep === 'defense') return (
             const isPos = (def?.value||0) >= 0;
             return (
               <div key={i} style={{ fontSize: 10, color: isPos?C.statPosText:C.statNegText, paddingLeft: 4, marginBottom: 2 }}>
-                {t.teamTag ? `[${t.teamTag}]` : `#${t.playerNumber} ${t.playerName} (${t.playerPos})`} — {t.statKey} <span style={{ fontWeight: 900 }}>{isPos?'+':''}{def?.value||0}</span>
+                {t.teamTag?`[${t.teamTag}]`:`#${t.playerNumber} ${t.playerName} (${t.playerPos})`} — {t.statKey} <span style={{ fontWeight: 900 }}>{isPos?'+':''}{def?.value||0}</span>
               </div>
             );
           })}
@@ -837,7 +837,7 @@ if (lineupStep === 'defense') return (
           <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>⚔️ Offense</div>
           {['OL','QB','RB','WR','TE'].map(pos => {
             const grp = offenseOnField.filter(p => p.position===pos);
-            if (grp.length === 0) return null;
+            if (grp.length===0) return null;
             return (
               <div key={pos} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>{pos}</div>
@@ -869,7 +869,7 @@ if (lineupStep === 'defense') return (
           <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>🛡️ Defense</div>
           {['DL','LB','DB'].map(pos => {
             const grp = defenseOnField.filter(p => p.position===pos);
-            if (grp.length === 0) return null;
+            if (grp.length===0) return null;
             return (
               <div key={pos} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>{pos}</div>
@@ -911,7 +911,7 @@ if (lineupStep === 'defense') return (
       {selectedPlayer && (
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 10, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-            {isTeamTag ? (selectedPlayer==='BWD'?'BWD Team Score':oppAbbr+' Team Score') : `#${selectedPlayerRecord?.number} ${selectedPlayerRecord?.name} · ${selectedPlayerRecord?.position}`}
+            {isTeamTag ? (selectedPlayer==='BWD'?'BWD Team':oppAbbr+' Team') : `#${selectedPlayerRecord?.number} ${selectedPlayerRecord?.name} · ${selectedPlayerRecord?.position}`}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
             {statDefs.map(def => {
@@ -948,10 +948,12 @@ if (lineupStep === 'defense') return (
                 <button onClick={() => setExpandedSnap(isExpanded?null:snapIndex)}
                   style={{ width: '100%', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ textAlign: 'left' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: C.gold }}>P{snap.snapNumber}</span>
-                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>{snap.possession==='BWD'?'⚔️':'🛡️'} {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.playType}</span>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: C.gold }}>P{snap.snapNumber}</span>
+                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 6 }}>
+                      {snap.possession==='BWD'?'⚔️':'🛡️'} {snap.down}&{snap.distance} · {snap.fieldSide} {snap.yardLine} · {snap.hash||'M'} · {snap.playDirection==='Left'?'←':snap.playDirection==='Right'?'→':'↑'} · {snap.playType} · {snap.gainLoss>0?'+':''}{snap.gainLoss||0}yds
+                    </span>
                   </div>
-                  <span style={{ fontSize: 9, color: C.muted }}>{snap.tags?.length||0}t {isExpanded?'▲':'▼'}</span>
+                  <span style={{ fontSize: 9, color: C.muted, flexShrink: 0, marginLeft: 6 }}>{snap.tags?.length||0}t {isExpanded?'▲':'▼'}</span>
                 </button>
                 {isExpanded && (
                   <div style={{ padding: '2px 10px 8px' }}>
@@ -988,7 +990,6 @@ if (lineupStep === 'defense') return (
   );
 }
 
-// ── Game Screen ───────────────────────────────────────────────────────────────
 function FBGameScreen({ team, role }) {
   const [opponents, setOpponents] = useState([]);
   const [games, setGames] = useState([]);
@@ -1099,7 +1100,6 @@ function FBGameScreen({ team, role }) {
   );
 }
 
-// ── Seasons Screen ────────────────────────────────────────────────────────────
 function FBSeasonsScreen({ team, role }) {
   const [seasons, setSeasons] = useState([]);
   const [newName, setNewName] = useState('');
@@ -1139,7 +1139,6 @@ function FBSeasonsScreen({ team, role }) {
   );
 }
 
-// ── Main View ─────────────────────────────────────────────────────────────────
 export function FootballTeamView({ team, onBack }) {
   const [tab, setTab] = useState('game');
   const FB_LOGO = 'https://xqfykowofjswojwgdcmj.supabase.co/storage/v1/object/public/Assets/Untitled%20design.PNG';
