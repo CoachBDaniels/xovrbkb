@@ -570,11 +570,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   }, [team.id]);
 
   // Trigger lineup setup once players load
-  useEffect(() => {
-    if (players.length > 0 && offenseLineup === null && defenseLineup === null) {
-      setLineupStep('offense');
-    }
-  }, [players.length]);
+useEffect(() => {
+  if (players.length > 0 && offenseLineup === null && defenseLineup === null && lineupStep === null) {
+    setLineupStep('offense');
+  }
+}, [players.length, lineupStep]);
 
   const isSTPlay = ST_PLAY_TYPES.has(playType);
   const offenseOnField = players.filter(p => (offenseLineup||[]).includes(p.id));
@@ -698,21 +698,27 @@ const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForP
   if (showBoxScore) return <FBBoxScore team={team} game={{ ...game, player_stats: playerStats, meta: getMeta() }} players={players} onClose={() => onSaved()} />;
 
   // Lineup setup
-  if (lineupStep === 'offense') return (
-    <div style={{ color: C.text }}>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 1 of 2 — Pick your starting offensive 11</div>
-      <LineupPicker players={players} unit="offense" existingLineup={offenseLineup||[]}
-        onConfirm={(ids) => { setOffenseLineup(ids); setLineupStep('defense'); }} />
-    </div>
-  );
+if (lineupStep === 'offense') return (
+  <div style={{ color: C.text }}>
+    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 1 of 2 — Pick your starting offensive 11</div>
+    <LineupPicker players={players} unit="offense" existingLineup={offenseLineup||[]}
+      onConfirm={(ids) => {
+        setOffenseLineup(ids);
+        setTimeout(() => setLineupStep('defense'), 0);
+      }} />
+  </div>
+);
 
-  if (lineupStep === 'defense') return (
-    <div style={{ color: C.text }}>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 2 of 2 — Pick your starting defensive 11</div>
-      <LineupPicker players={players} unit="defense" existingLineup={defenseLineup||[]}
-        onConfirm={(ids) => { setDefenseLineup(ids); setLineupStep(null); }} />
-    </div>
-  );
+if (lineupStep === 'defense') return (
+  <div style={{ color: C.text }}>
+    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 2 of 2 — Pick your starting defensive 11</div>
+    <LineupPicker players={players} unit="defense" existingLineup={defenseLineup||[]}
+      onConfirm={(ids) => {
+        setDefenseLineup(ids);
+        setTimeout(() => setLineupStep(null), 0);
+      }} />
+  </div>
+);
 
   if (showSubs) return (
     <SubModal players={players} currentLineup={showSubs==='offense'?(offenseLineup||[]):(defenseLineup||[])} unit={showSubs}
