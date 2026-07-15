@@ -701,7 +701,7 @@ const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForP
 if (lineupStep === 'offense') return (
   <div style={{ color: C.text }}>
     <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 1 of 2 — Pick your starting offensive 11</div>
-    <LineupPicker players={players} unit="offense" existingLineup={offenseLineup||[]}
+    <LineupPicker key="offense" players={players} unit="offense" existingLineup={offenseLineup||[]}
       onConfirm={(ids) => {
         setOffenseLineup(ids);
         setTimeout(() => setLineupStep('defense'), 0);
@@ -712,7 +712,7 @@ if (lineupStep === 'offense') return (
 if (lineupStep === 'defense') return (
   <div style={{ color: C.text }}>
     <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>Step 2 of 2 — Pick your starting defensive 11</div>
-    <LineupPicker players={players} unit="defense" existingLineup={defenseLineup||[]}
+    <LineupPicker key="defense" players={players} unit="defense" existingLineup={defenseLineup||[]}
       onConfirm={(ids) => {
         setDefenseLineup(ids);
         setTimeout(() => setLineupStep(null), 0);
