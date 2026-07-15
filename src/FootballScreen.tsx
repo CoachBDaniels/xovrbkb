@@ -581,10 +581,12 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const defenseOnField = players.filter(p => (defenseLineup||[]).includes(p.id));
   const allOnField = [...offenseOnField, ...defenseOnField];
 
-  const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
-  const isTeamTag = selectedPlayer === 'BWD' || selectedPlayer === 'OPP';
-  const teamStatDefs = selectedPlayer === 'BWD' ? BWD_TEAM_STATS : OPP_TEAM_STATS;
-  const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position||'LB') : DEFENSE_STATS);
+ const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
+const isTeamTag = selectedPlayer === 'BWD' || selectedPlayer === 'OPP';
+const bwdTeamStatDefs = possession === 'BWD' ? BWD_TEAM_STATS : DEFENSE_STATS;
+const oppTeamStatDefs = possession === 'BWD' ? DEFENSE_STATS : OPP_TEAM_STATS;
+const teamStatDefs = selectedPlayer === 'BWD' ? bwdTeamStatDefs : oppTeamStatDefs;
+const statDefs = isTeamTag ? teamStatDefs : (selectedPlayerRecord ? getStatsForPosition(selectedPlayerRecord.position||'LB') : DEFENSE_STATS);
 
   const applyScore = (key, forBWD) => {
     if (key === 'TD' || key === 'DefTD' || key === 'RetTD') {
