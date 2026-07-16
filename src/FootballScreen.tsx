@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
 
 const DEFENSE_STATS = [
@@ -121,13 +121,6 @@ const ST_PLAY_TYPES = new Set(['Punt', 'Kick', 'FG', 'PAT']);
 const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']);
 const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']);
 
-// Field position:
-// -1  = own 1 yd line (backed up)
-// -20 = own 20 (touchback)
-// -49 = own 49 (just before midfield)
-//  50 = midfield
-//  49 = opp 49 (just past midfield)
-//   1 = opp 1 yd line (goal line)
 function formatFieldPos(fp) {
   if (fp === null || fp === undefined) return 'BWD 20';
   if (fp === 50) return '50';
@@ -135,22 +128,19 @@ function formatFieldPos(fp) {
   return `OPP ${fp}`;
 }
 
-// Convert fieldPos to absolute yards from own goal line (1-99)
 function fpToAbsolute(fp) {
-  if (fp < 0) return Math.abs(fp);      // -20 → 20
-  if (fp === 50) return 50;             // midfield
-  return 100 - fp;                       // opp 49 → 51, opp 1 → 99
+  if (fp < 0) return Math.abs(fp);
+  if (fp === 50) return 50;
+  return 100 - fp;
 }
 
-// Convert absolute yards back to fieldPos
 function absoluteToFp(abs) {
   const clamped = Math.max(1, Math.min(99, abs));
-  if (clamped < 50) return -clamped;    // 34 → -34
-  if (clamped === 50) return 50;        // midfield
-  return 100 - clamped;                 // 51 → 49 (opp 49), 99 → 1 (opp 1)
+  if (clamped < 50) return -clamped;
+  if (clamped === 50) return 50;
+  return 100 - clamped;
 }
 
-// Gain/loss options: -50 to +99 with 0 in middle
 const GAIN_LOSS_OPTIONS = [
   ...Array.from({length: 50}, (_, i) => -(50 - i)),
   0,
@@ -218,28 +208,35 @@ function FootballScoreboard({ bwdScore, oppScore, oppAbbr, possession, quarter, 
   );
 }
 
+// Clock modal with dropdowns instead of text inputs
 function ClockModal({ clockMin, clockSec, quarter, onSave, onClose }) {
   const [min, setMin] = useState(clockMin);
   const [sec, setSec] = useState(clockSec);
   const [q, setQ] = useState(quarter);
+  const minOptions = Array.from({length: 16}, (_, i) => i); // 0-15
+  const secOptions = Array.from({length: 60}, (_, i) => i); // 0-59
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, width: 280 }}>
         <div style={{ fontWeight: 700, color: C.text, marginBottom: 14, fontSize: 14 }}>Set Clock</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-          <input type="number" value={min} min={0} max={99} onChange={e => setMin(Math.max(0,parseInt(e.target.value)||0))}
-            style={{ width: 64, padding: 10, fontSize: 20, textAlign: 'center', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
-          <span style={{ fontSize: 20, color: C.text }}>:</span>
-          <input type="number" value={sec} min={0} max={59} onChange={e => setSec(Math.max(0,Math.min(59,parseInt(e.target.value)||0)))}
-            style={{ width: 64, padding: 10, fontSize: 20, textAlign: 'center', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text }} />
+          <select value={min} onChange={e => setMin(Number(e.target.value))}
+            style={{ flex: 1, padding: 12, fontSize: 22, textAlign: 'center', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.gold, fontWeight: 900, cursor: 'pointer' }}>
+            {minOptions.map(n => <option key={n} value={n}>{String(n).padStart(2,'0')}</option>)}
+          </select>
+          <span style={{ fontSize: 24, color: C.text, fontWeight: 900 }}>:</span>
+          <select value={sec} onChange={e => setSec(Number(e.target.value))}
+            style={{ flex: 1, padding: 12, fontSize: 22, textAlign: 'center', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 7, color: C.gold, fontWeight: 900, cursor: 'pointer' }}>
+            {secOptions.map(n => <option key={n} value={n}>{String(n).padStart(2,'0')}</option>)}
+          </select>
         </div>
-        <div style={{ fontSize: 10, color: C.muted, marginBottom: 6 }}>QUARTER</div>
+        <div style={{ fontSize: 10, color: C.muted, marginBottom: 6, textTransform: 'uppercase', fontWeight: 700 }}>Quarter</div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {[1,2,3,4].map(n => (
-            <button key={n} onClick={() => setQ(n)} style={{ flex: 1, padding: 8, borderRadius: 7, fontWeight: 900, background: q===n?C.gold:C.navyDark, color: q===n?C.textDark:C.text, border: `1px solid ${q===n?C.gold:C.border}`, cursor: 'pointer' }}>{n}</button>
+            <button key={n} onClick={() => setQ(n)} style={{ flex: 1, padding: 10, borderRadius: 7, fontWeight: 900, fontSize: 15, background: q===n?C.gold:C.navyDark, color: q===n?C.textDark:C.text, border: `1px solid ${q===n?C.gold:C.border}`, cursor: 'pointer' }}>{n}</button>
           ))}
         </div>
-        <button onClick={() => onSave(min,sec,q)} style={{ width: '100%', padding: 10, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, cursor: 'pointer', marginBottom: 8 }}>Set Clock</button>
+        <button onClick={() => onSave(min,sec,q)} style={{ width: '100%', padding: 12, background: C.gold, border: 'none', borderRadius: 8, color: C.textDark, fontWeight: 800, fontSize: 14, cursor: 'pointer', marginBottom: 8 }}>Set Clock</button>
         <button onClick={onClose} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer' }}>Cancel</button>
       </div>
     </div>
@@ -559,6 +556,18 @@ function FBBoxScore({ team, game, players, onClose }) {
   );
 }
 
+// Compact player button
+function PlayerBtn({ p, sel, tagged, eff, onSelect }) {
+  return (
+    <button onClick={() => onSelect(sel ? null : p.id)}
+      style={{ padding: '4px 6px', borderRadius: 6, border: sel?`2px solid ${C.gold}`:tagged?`2px solid ${C.green}`:`1px solid ${C.border}`, background: sel?C.goldLight:tagged?'rgba(34,197,94,0.1)':C.navyMid, color: sel?C.gold:C.text, cursor: 'pointer', textAlign: 'center', minWidth: 46 }}>
+      <div style={{ fontSize: 11, fontWeight: 900 }}>#{p.number||'—'}</div>
+      <div style={{ fontSize: 7, color: sel?C.gold:C.muted, whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: 44 }}>{p.name.split(' ')[0].slice(0,5)}</div>
+      <div style={{ fontSize: 8, fontWeight: 700, color: eff>=0?C.green:C.red }}>{eff>=0?'+':''}{eff}</div>
+    </button>
+  );
+}
+
 function FBGameTagger({ team, game, onSaved, onBack }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -586,6 +595,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [expandedSnap, setExpandedSnap] = useState(null);
+  const autoSaveRef = useRef(null);
 
   const oppName = game.meta?.opponentName || 'OPP';
   const oppAbbr = game.meta?.opponentAbbr || oppName.slice(0,3).toUpperCase();
@@ -596,13 +606,42 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   }, [team.id]);
 
   useEffect(() => {
-    if (players.length > 0 && offenseLineup === null && defenseLineup === null && lineupStep === null) {
-      setLineupStep('offense');
+    if (players.length > 0 && lineupStep === null) {
+      if (offenseLineup === null && defenseLineup === null) {
+        setLineupStep('offense');
+      } else if (offenseLineup !== null && defenseLineup === null) {
+        setLineupStep('defense');
+      }
     }
-  }, [players.length, lineupStep]);
+  }, [players.length]);
+
+  // Auto-save 1 second after any game state change
+  useEffect(() => {
+    if (snaps.length === 0 && Object.keys(playerStats).length === 0) return;
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    autoSaveRef.current = setTimeout(() => {
+      supabase.from('games').update({
+        player_stats: playerStats,
+        meta: {
+          ...game.meta,
+          snaps, possession, quarter, clockMin, clockSec,
+          bwdScore, oppScore, offenseLineup, defenseLineup, fieldPos,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', game.id).then(({ error }) => {
+        if (error) console.error('Auto-save failed:', error.message);
+      });
+    }, 1000);
+    return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current); };
+  }, [snaps, playerStats, bwdScore, oppScore, possession, quarter, clockMin, clockSec, fieldPos, offenseLineup, defenseLineup]);
 
   const offenseOnField = players.filter(p => (offenseLineup||[]).includes(p.id));
   const defenseOnField = players.filter(p => (defenseLineup||[]).includes(p.id));
+  const isSTPlay = ST_PLAY_TYPES.has(playType);
+
+  // Show offense when BWD has ball, defense when OPP has ball, both on ST plays
+  const showOffense = isSTPlay || possession === 'BWD';
+  const showDefense = isSTPlay || possession === 'OPP';
 
   const selectedPlayerRecord = players.find(p => p.id === selectedPlayer);
   const isTeamTag = selectedPlayer === 'BWD' || selectedPlayer === 'OPP';
@@ -671,8 +710,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     setSnaps(prev => [...prev, snap]);
     setCurrentTags([]);
     setSelectedPlayer(null);
-
-    // Auto-advance field position based on gain/loss then reset to 0
     if (gainLoss !== 0) {
       const absolute = fpToAbsolute(fieldPos);
       const newAbsolute = Math.max(1, Math.min(99, absolute + gainLoss));
@@ -684,7 +721,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const undoLastSnap = () => {
     if (snaps.length===0) return;
     const lastSnap = snaps[snaps.length-1];
-    // Restore field pos from the snapped play
     setFieldPos(lastSnap.fieldPos);
     setPlayerStats(prev => {
       const next = { ...prev };
@@ -739,6 +775,14 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
   const PLAY_TYPES = ['Run','Pass','Punt','Kick','FG','PAT'];
   const distOptions = Array.from({length:75},(_,i)=>i+1);
 
+  const renderPlayerBtn = (p) => {
+    const sel = selectedPlayer===p.id;
+    const tagged = currentTags.some(t => t.playerId===p.id);
+    const pStats = playerStats[p.id]||{};
+    const eff = getStatsForPosition(p.position||'LB').reduce((s,d)=>s+(pStats[d.key]||0)*d.value,0);
+    return <PlayerBtn key={p.id} p={p} sel={sel} tagged={tagged} eff={eff} onSelect={setSelectedPlayer} />;
+  };
+
   return (
     <div style={{ color: C.text }}>
       <FootballScoreboard
@@ -755,16 +799,16 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         onClose={() => setShowClock(false)} />}
 
       {/* Play counter */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 12px', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', marginBottom: 8 }}>
         <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>▶ PLAY</span>
         <span style={{ fontSize: 22, fontWeight: 900, color: C.gold, letterSpacing: -1 }}>{snaps.length+1}</span>
-        {currentTags.length > 0 && <span style={{ fontSize: 10, color: C.green, fontWeight: 700, marginLeft: 4 }}>● {currentTags.length} tag{currentTags.length!==1?'s':''} in progress</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 10, color: C.muted }}>{snaps.length} completed</span>
+        {currentTags.length > 0 && <span style={{ fontSize: 10, color: C.green, fontWeight: 700, marginLeft: 4 }}>● {currentTags.length} tag{currentTags.length!==1?'s':''}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: C.muted }}>{snaps.length} done</span>
       </div>
 
-      {/* Possession flip + actions */}
+      {/* Actions */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <button onClick={() => { setPossession(p => p==='BWD'?'OPP':'BWD'); setDown(1); setDistance(10); }}
+        <button onClick={() => { setPossession(p => p==='BWD'?'OPP':'BWD'); setDown(1); setDistance(10); setSelectedPlayer(null); }}
           style={{ flex: 1, padding: '7px 0', background: 'rgba(200,168,75,0.1)', border: `1px solid ${C.gold}`, borderRadius: 7, color: C.gold, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}>
           🏈 Flip
         </button>
@@ -776,7 +820,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       {/* Play setup */}
       <div style={{ background: C.navyMid, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 10px', marginBottom: 8 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          {/* Down */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Down</div>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -785,7 +828,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               ))}
             </div>
           </div>
-          {/* Distance */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Dist</div>
             <select value={distance} onChange={e => setDistance(Number(e.target.value))}
@@ -793,25 +835,16 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               {distOptions.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          {/* Field position */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Field Pos</div>
             <select value={fieldPos} onChange={e => setFieldPos(Number(e.target.value))}
               style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 900, width: 74,
                 color: fieldPos===50?C.gold:fieldPos<0?C.muted:C.statPosText }}>
-              {/* Own side: -1 to -49 */}
-              {Array.from({length:49},(_,i)=>-(i+1)).map(n => (
-                <option key={`own${n}`} value={n}>{n}</option>
-              ))}
-              {/* Midfield */}
+              {Array.from({length:49},(_,i)=>-(i+1)).map(n => <option key={`own${n}`} value={n}>{n}</option>)}
               <option value={50}>50</option>
-              {/* Opp side: 49 down to 1 */}
-              {Array.from({length:49},(_,i)=>49-i).map(n => (
-                <option key={`opp${n}`} value={n}>{n}</option>
-              ))}
+              {Array.from({length:49},(_,i)=>49-i).map(n => <option key={`opp${n}`} value={n}>{n}</option>)}
             </select>
           </div>
-          {/* Hash */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Hash</div>
             <div style={{ display: 'flex', gap: 3 }}>
@@ -820,19 +853,15 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               ))}
             </div>
           </div>
-          {/* Direction */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Dir</div>
             <div style={{ display: 'flex', gap: 3 }}>
               {['←','↑','→'].map((arrow,i) => {
                 const dir = ['Left','Middle','Right'][i];
-                return (
-                  <button key={dir} onClick={() => setPlayDirection(dir)} style={{ width: 26, height: 28, borderRadius: 6, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: playDirection===dir?C.gold:C.navyDark, color: playDirection===dir?C.textDark:C.text, border: `1px solid ${playDirection===dir?C.gold:C.border}` }}>{arrow}</button>
-                );
+                return <button key={dir} onClick={() => setPlayDirection(dir)} style={{ width: 26, height: 28, borderRadius: 6, fontWeight: 900, fontSize: 13, cursor: 'pointer', background: playDirection===dir?C.gold:C.navyDark, color: playDirection===dir?C.textDark:C.text, border: `1px solid ${playDirection===dir?C.gold:C.border}` }}>{arrow}</button>;
               })}
             </div>
           </div>
-          {/* Play type */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Type</div>
             <select value={playType} onChange={e => setPlayType(e.target.value)}
@@ -840,14 +869,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
               {PLAY_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
-          {/* Gain/Loss */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Gain/Loss</div>
             <select value={gainLoss} onChange={e => setGainLoss(Number(e.target.value))}
               style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: gainLoss>0?C.statPosText:gainLoss<0?C.statNegText:C.muted, fontSize: 12, fontWeight: 900, width: 66 }}>
-              {GAIN_LOSS_OPTIONS.map(n => (
-                <option key={n} value={n}>{n>0?'+'+n:n}</option>
-              ))}
+              {GAIN_LOSS_OPTIONS.map(n => <option key={n} value={n}>{n>0?'+'+n:n}</option>)}
             </select>
           </div>
         </div>
@@ -861,7 +887,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>↺ Reset</button>
       </div>
 
-      {/* Current snap tags */}
+      {/* Current snap */}
       {currentTags.length > 0 && (
         <div style={{ background: 'rgba(200,168,75,0.06)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '8px 12px', marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -889,64 +915,46 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
         </div>
       )}
 
-      {/* Offense players */}
-      {offenseOnField.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>⚔️ Offense</div>
-          {['OL','QB','RB','WR','TE'].map(pos => {
-            const grp = offenseOnField.filter(p => p.position===pos);
-            if (grp.length===0) return null;
+      {/* ── OFFENSE (only when BWD has ball or ST play) ── */}
+      {showOffense && offenseOnField.length > 0 && (
+        <div style={{ marginBottom: 8, background: 'rgba(200,168,75,0.04)', border: `1px solid rgba(200,168,75,0.2)`, borderRadius: 10, padding: '8px 10px' }}>
+          <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>⚔️ Offense</div>
+          {/* OL + TE on same row */}
+          {(() => {
+            const olte = offenseOnField.filter(p => p.position==='OL' || p.position==='TE');
+            if (olte.length === 0) return null;
             return (
-              <div key={pos} style={{ marginBottom: 5 }}>
-                <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>{pos}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {grp.map(p => {
-                    const sel = selectedPlayer===p.id;
-                    const tagged = currentTags.some(t => t.playerId===p.id);
-                    const pStats = playerStats[p.id]||{};
-                    const eff = getStatsForPosition(p.position||'OL').reduce((s,d)=>s+(pStats[d.key]||0)*d.value,0);
-                    return (
-                      <button key={p.id} onClick={() => setSelectedPlayer(sel?null:p.id)}
-                        style={{ padding: '5px 7px', borderRadius: 7, border: sel?`2px solid ${C.gold}`:tagged?`2px solid ${C.green}`:`1px solid ${C.border}`, background: sel?C.goldLight:tagged?'rgba(34,197,94,0.1)':C.navyMid, color: sel?C.gold:C.text, cursor: 'pointer', textAlign: 'center', minWidth: 50 }}>
-                        <div style={{ fontSize: 11, fontWeight: 900 }}>#{p.number||'—'}</div>
-                        <div style={{ fontSize: 8, color: sel?C.gold:C.muted }}>{p.name.split(' ')[0].slice(0,6)}</div>
-                        <div style={{ fontSize: 8, fontWeight: 700, color: eff>=0?C.green:C.red }}>{eff>=0?'+':''}{eff}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+              <div style={{ marginBottom: 5 }}>
+                <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>OL · TE</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{olte.map(renderPlayerBtn)}</div>
               </div>
             );
-          })}
+          })()}
+          {/* QB + RB + WR on same row */}
+          {(() => {
+            const skill = offenseOnField.filter(p => p.position==='QB' || p.position==='RB' || p.position==='WR');
+            if (skill.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 2 }}>
+                <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>QB · RB · WR</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{skill.map(renderPlayerBtn)}</div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Defense players */}
-      {defenseOnField.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: C.gold, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 }}>🛡️ Defense</div>
+      {/* ── DEFENSE (only when OPP has ball or ST play) ── */}
+      {showDefense && defenseOnField.length > 0 && (
+        <div style={{ marginBottom: 8, background: 'rgba(239,68,68,0.04)', border: `1px solid rgba(239,68,68,0.2)`, borderRadius: 10, padding: '8px 10px' }}>
+          <div style={{ fontSize: 9, color: C.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>🛡️ Defense</div>
           {['DL','LB','DB'].map(pos => {
             const grp = defenseOnField.filter(p => p.position===pos);
             if (grp.length===0) return null;
             return (
               <div key={pos} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>{pos}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {grp.map(p => {
-                    const sel = selectedPlayer===p.id;
-                    const tagged = currentTags.some(t => t.playerId===p.id);
-                    const pStats = playerStats[p.id]||{};
-                    const eff = getStatsForPosition(p.position||'LB').reduce((s,d)=>s+(pStats[d.key]||0)*d.value,0);
-                    return (
-                      <button key={p.id} onClick={() => setSelectedPlayer(sel?null:p.id)}
-                        style={{ padding: '5px 7px', borderRadius: 7, border: sel?`2px solid ${C.gold}`:tagged?`2px solid ${C.green}`:`1px solid ${C.border}`, background: sel?C.goldLight:tagged?'rgba(34,197,94,0.1)':C.navyMid, color: sel?C.gold:C.text, cursor: 'pointer', textAlign: 'center', minWidth: 50 }}>
-                        <div style={{ fontSize: 11, fontWeight: 900 }}>#{p.number||'—'}</div>
-                        <div style={{ fontSize: 8, color: sel?C.gold:C.muted }}>{p.name.split(' ')[0].slice(0,6)}</div>
-                        <div style={{ fontSize: 8, fontWeight: 700, color: eff>=0?C.green:C.red }}>{eff>=0?'+':''}{eff}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{grp.map(renderPlayerBtn)}</div>
               </div>
             );
           })}
@@ -990,7 +998,7 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
       {!selectedPlayer && (
         <div style={{ textAlign: 'center', padding: 10, color: C.muted, fontSize: 12 }}>
-          {currentTags.length > 0 ? 'Tap another player · hit Next Play → when done' : 'Tap a player above or use BWD/OPP Team buttons'}
+          {currentTags.length > 0 ? 'Tap another player · Next Play → when done' : 'Tap a player above or use BWD/OPP Team buttons'}
         </div>
       )}
 
