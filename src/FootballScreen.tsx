@@ -121,10 +121,7 @@ const ST_PLAY_TYPES = new Set(['Punt', 'Kick', 'FG', 'PAT']);
 const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']);
 const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']);
 
-// Field position scale matching Hudl:
-// Own side:  -1 (own goal line) → -49 (own 49)
-// Midfield:  50
-// Opp side:  49 (opp 49) → 1 (opp goal line)
+// -1 = own 1yd line, -20 = touchback, -49 = own 49, 50 = midfield, 49 = opp 49, 1 = opp goal line
 function formatFieldPos(fp) {
   if (fp === null || fp === undefined) return 'BWD 20';
   if (fp === 50) return '50';
@@ -132,11 +129,18 @@ function formatFieldPos(fp) {
   return `OPP ${fp}`;
 }
 
-// All valid field positions in order
+// Field position options: -1 to -49, then 50, then 49 down to 1
 const FIELD_POS_OPTIONS = [
-  ...Array.from({length:49},(_,i)=>-(i+1)),  // -1 to -49
-  50,                                           // midfield
-  ...Array.from({length:49},(_,i)=>49-i),     // 49 to 1
+  ...Array.from({length: 49}, (_, i) => -(i + 1)),  // -1, -2, ... -49
+  50,                                                   // midfield
+  ...Array.from({length: 49}, (_, i) => 49 - i),     // 49, 48, ... 1
+];
+
+// Gain/loss: -50 to +99 with 0 in middle
+const GAIN_LOSS_OPTIONS = [
+  ...Array.from({length: 50}, (_, i) => -(50 - i)),  // -50 to -1
+  0,
+  ...Array.from({length: 99}, (_, i) => i + 1),       // 1 to 99
 ];
 
 function getStatsForPosition(pos) {
@@ -710,7 +714,6 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
 
   const PLAY_TYPES = ['Run','Pass','Punt','Kick','FG','PAT'];
   const distOptions = Array.from({length:75},(_,i)=>i+1);
-  const gainLossOptions = Array.from({length:201},(_,i)=>i-100);
 
   return (
     <div style={{ color: C.text }}>
@@ -761,11 +764,12 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           {/* Distance */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Dist</div>
-            <select value={distance} onChange={e => setDistance(Number(e.target.value))} style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 13, fontWeight: 900, width: 56 }}>
+            <select value={distance} onChange={e => setDistance(Number(e.target.value))}
+              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.gold, fontSize: 13, fontWeight: 900, width: 56 }}>
               {distOptions.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          {/* Field position — Hudl style */}
+          {/* Field position */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Field Pos</div>
             <select value={fieldPos} onChange={e => setFieldPos(Number(e.target.value))}
@@ -773,13 +777,13 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
                 color: fieldPos === 50 ? C.gold : fieldPos < 0 ? C.muted : C.statPosText }}>
               {/* Own side: -1 to -49 */}
               {Array.from({length:49},(_,i)=>-(i+1)).map(n => (
-                <option key={n} value={n}>{n}</option>
+                <option key={`own${n}`} value={n}>{n}</option>
               ))}
               {/* Midfield */}
               <option value={50}>50</option>
-              {/* Opp side: 49 to 1 */}
+              {/* Opp side: 49 down to 1 */}
               {Array.from({length:49},(_,i)=>49-i).map(n => (
-                <option key={`opp${n}`} value={n}>+{n}</option>
+                <option key={`opp${n}`} value={n}>{n}</option>
               ))}
             </select>
           </div>
@@ -807,7 +811,8 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           {/* Play type */}
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Type</div>
-            <select value={playType} onChange={e => setPlayType(e.target.value)} style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, width: 58 }}>
+            <select value={playType} onChange={e => setPlayType(e.target.value)}
+              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontSize: 11, width: 58 }}>
               {PLAY_TYPES.map(pt => <option key={pt} value={pt}>{pt}</option>)}
             </select>
           </div>
@@ -815,8 +820,10 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Gain/Loss</div>
             <select value={gainLoss} onChange={e => setGainLoss(Number(e.target.value))}
-              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: gainLoss>0?C.statPosText:gainLoss<0?C.statNegText:C.muted, fontSize: 12, fontWeight: 900, width: 64 }}>
-              {gainLossOptions.map(n => <option key={n} value={n}>{n>0?'+'+n:n}</option>)}
+              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, color: gainLoss>0?C.statPosText:gainLoss<0?C.statNegText:C.muted, fontSize: 12, fontWeight: 900, width: 66 }}>
+              {GAIN_LOSS_OPTIONS.map(n => (
+                <option key={n} value={n}>{n>0?'+'+n:n}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -826,10 +833,11 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
       <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
         <button onClick={() => setShowSubs('offense')} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>⚔️ OFF Sub</button>
         <button onClick={() => setShowSubs('defense')} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>🛡️ DEF Sub</button>
-        <button onClick={() => { setOffenseLineup(null); setDefenseLineup(null); setTimeout(() => setLineupStep('offense'), 0); }} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>↺ Reset</button>
+        <button onClick={() => { setOffenseLineup(null); setDefenseLineup(null); setTimeout(() => setLineupStep('offense'), 0); }}
+          style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontWeight: 700, fontSize: 10, cursor: 'pointer' }}>↺ Reset</button>
       </div>
 
-      {/* Current snap */}
+      {/* Current snap tags */}
       {currentTags.length > 0 && (
         <div style={{ background: 'rgba(200,168,75,0.06)', border: `1px solid ${C.gold}`, borderRadius: 10, padding: '8px 12px', marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -1051,7 +1059,12 @@ function FBGameScreen({ team, role }) {
     const opp = opponents.find(o => o.id===oppId);
     const { data, error } = await supabase.from('games').insert({
       season_id: currentSeason.id, opponent_id: oppId,
-      meta: { opponentName: opp?.name||'OPP', opponentAbbr: opp?.abbr||(opp?.name||'OPP').slice(0,3).toUpperCase(), date, snaps: [], possession: 'BWD', quarter: 1, clockMin: 12, clockSec: 0, bwdScore: 0, oppScore: 0, fieldPos: -20 },
+      meta: {
+        opponentName: opp?.name||'OPP',
+        opponentAbbr: opp?.abbr||(opp?.name||'OPP').slice(0,3).toUpperCase(),
+        date, snaps: [], possession: 'BWD', quarter: 1,
+        clockMin: 12, clockSec: 0, bwdScore: 0, oppScore: 0, fieldPos: -20,
+      },
       player_stats: {},
     }).select().single();
     if (!error&&data) setActiveGame(data); else if (error) alert('Error: '+error.message);
