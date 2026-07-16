@@ -121,7 +121,13 @@ const ST_PLAY_TYPES = new Set(['Punt', 'Kick', 'FG', 'PAT']);
 const BWD_TURNOVER_KEYS = new Set(['INT', 'FRFum', 'DefTD']);
 const OPP_TURNOVER_KEYS = new Set(['Fum', 'INT']);
 
-// -1 = own 1yd line, -20 = touchback, -49 = own 49, 50 = midfield, 49 = opp 49, 1 = opp goal line
+// Field position:
+// -1  = own 1 yd line (backed up)
+// -20 = own 20 (touchback)
+// -49 = own 49 (just before midfield)
+//  50 = midfield
+//  49 = opp 49 (just past midfield)
+//   1 = opp 1 yd line (goal line)
 function formatFieldPos(fp) {
   if (fp === null || fp === undefined) return 'BWD 20';
   if (fp === 50) return '50';
@@ -129,18 +135,26 @@ function formatFieldPos(fp) {
   return `OPP ${fp}`;
 }
 
-// Field position options: -1 to -49, then 50, then 49 down to 1
-const FIELD_POS_OPTIONS = [
-  ...Array.from({length: 49}, (_, i) => -(i + 1)),  // -1, -2, ... -49
-  50,                                                   // midfield
-  ...Array.from({length: 49}, (_, i) => 49 - i),     // 49, 48, ... 1
-];
+// Convert fieldPos to absolute yards from own goal line (1-99)
+function fpToAbsolute(fp) {
+  if (fp < 0) return Math.abs(fp);      // -20 → 20
+  if (fp === 50) return 50;             // midfield
+  return 100 - fp;                       // opp 49 → 51, opp 1 → 99
+}
 
-// Gain/loss: -50 to +99 with 0 in middle
+// Convert absolute yards back to fieldPos
+function absoluteToFp(abs) {
+  const clamped = Math.max(1, Math.min(99, abs));
+  if (clamped < 50) return -clamped;    // 34 → -34
+  if (clamped === 50) return 50;        // midfield
+  return 100 - clamped;                 // 51 → 49 (opp 49), 99 → 1 (opp 1)
+}
+
+// Gain/loss options: -50 to +99 with 0 in middle
 const GAIN_LOSS_OPTIONS = [
-  ...Array.from({length: 50}, (_, i) => -(50 - i)),  // -50 to -1
+  ...Array.from({length: 50}, (_, i) => -(50 - i)),
   0,
-  ...Array.from({length: 99}, (_, i) => i + 1),       // 1 to 99
+  ...Array.from({length: 99}, (_, i) => i + 1),
 ];
 
 function getStatsForPosition(pos) {
@@ -657,11 +671,21 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
     setSnaps(prev => [...prev, snap]);
     setCurrentTags([]);
     setSelectedPlayer(null);
+
+    // Auto-advance field position based on gain/loss then reset to 0
+    if (gainLoss !== 0) {
+      const absolute = fpToAbsolute(fieldPos);
+      const newAbsolute = Math.max(1, Math.min(99, absolute + gainLoss));
+      setFieldPos(absoluteToFp(newAbsolute));
+    }
+    setGainLoss(0);
   };
 
   const undoLastSnap = () => {
     if (snaps.length===0) return;
     const lastSnap = snaps[snaps.length-1];
+    // Restore field pos from the snapped play
+    setFieldPos(lastSnap.fieldPos);
     setPlayerStats(prev => {
       const next = { ...prev };
       (lastSnap.tags||[]).forEach(t => {
@@ -773,8 +797,8 @@ function FBGameTagger({ team, game, onSaved, onBack }) {
           <div>
             <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Field Pos</div>
             <select value={fieldPos} onChange={e => setFieldPos(Number(e.target.value))}
-              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 900, width: 72,
-                color: fieldPos === 50 ? C.gold : fieldPos < 0 ? C.muted : C.statPosText }}>
+              style={{ padding: '5px 4px', background: C.navyDark, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12, fontWeight: 900, width: 74,
+                color: fieldPos===50?C.gold:fieldPos<0?C.muted:C.statPosText }}>
               {/* Own side: -1 to -49 */}
               {Array.from({length:49},(_,i)=>-(i+1)).map(n => (
                 <option key={`own${n}`} value={n}>{n}</option>
