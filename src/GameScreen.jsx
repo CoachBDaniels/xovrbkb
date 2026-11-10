@@ -3,6 +3,8 @@ import { supabase } from './supabaseClient';
 import { useTheme } from './ThemeContext';
 import { STAT_DEFS, GAME_FORMAT_PRESETS, emptyPlayerStats, calcPts, calcEff, CourtSVG, ShotChartView, BoxScoreReport, FormatPicker, applyStatDefs } from './GameReports';
 
+const SHOT_KEYS = ['2PM', '2PA', '3PM', '3PA'];
+
 function isInsideArc(x, y) {
   const svgX = x * 3;
   const svgY = y * 2.6;
@@ -316,6 +318,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [specialPicker, setSpecialPicker] = useState(null);
   const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory || []);
   const [statDefsReady, setStatDefsReady] = useState(false);
+  // Timeouts
+  const [timeoutLog, setTimeoutLog] = useState(game.meta?.timeoutLog || []);
+  const [toAllot, setToAllot] = useState(game.meta?.toAllot || 5);
+  // Play log editing
+  const [logExpanded, setLogExpanded] = useState(false);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editPlayerId, setEditPlayerId] = useState(null);
+  const [editKey, setEditKey] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -342,9 +352,15 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const statsFor = (id) => stats[id] || emptyPlayerStats();
 
-  const commitStatOnly = (playerId, key, loggedShot) => {
-    setStats(prev => { const cur = prev[playerId] || emptyPlayerStats(); return { ...prev, [playerId]: { ...cur, [key]: (cur[key]||0)+1 } }; });
-    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, period: currentPeriod }]);
+  // Returns a new stats object with one stat for one player adjusted by delta
+  const adjustStat = (statsObj, pid, key, delta) => {
+    const cur = statsObj[pid] || emptyPlayerStats();
+    return { ...statsObj, [pid]: { ...cur, [key]: Math.max(0, (cur[key] || 0) + delta) } };
+  };
+
+  const commitStatOnly = (playerId, key, loggedShot, sid) => {
+    setStats(prev => adjustStat(prev, playerId, key, 1));
+    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, sid: sid || null, period: currentPeriod }]);
   };
 
   const tagStat = (playerId, key) => {
@@ -362,23 +378,74 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     if (!pendingShot || !selectedPlayer) return;
     const { x, y, is2pt } = pendingShot;
     const key = is2pt ? (make ? '2PM' : '2PA') : (make ? '3PM' : '3PA');
-    commitStatOnly(selectedPlayer, key, true);
-    setShotLog(prev => [...prev, { playerId: selectedPlayer, statKey: key, x, y, make, period: currentPeriod }]);
+    const sid = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    commitStatOnly(selectedPlayer, key, true, sid);
+    setShotLog(prev => [...prev, { sid, playerId: selectedPlayer, statKey: key, x, y, make, period: currentPeriod }]);
     setPendingShot(null);
     setSelectedPlayer(null);
   };
 
-  const undoLastAction = () => {
-    setActionHistory(prevHistory => {
-      if (prevHistory.length === 0) return prevHistory;
-      const last = prevHistory[prevHistory.length - 1];
-      setStats(prevStats => { const cur = prevStats[last.playerId] || emptyPlayerStats(); return { ...prevStats, [last.playerId]: { ...cur, [last.key]: Math.max(0,(cur[last.key]||0)-1) } }; });
-      if (last.loggedShot) {
-        setShotLog(prevShots => { const idx = [...prevShots.keys()].reverse().find(i => prevShots[i].playerId===last.playerId && prevShots[i].statKey===last.key); return idx==null ? prevShots : prevShots.filter((_,i) => i!==idx); });
-      }
-      return prevHistory.slice(0,-1);
-    });
+  // Find the shotLog index that belongs to an action (by id, or fall back to last match for older entries)
+  const findShotIdx = (a) => {
+    if (a.sid) return shotLog.findIndex(s => s.sid === a.sid);
+    for (let i = shotLog.length - 1; i >= 0; i--) {
+      if (shotLog[i].playerId === a.playerId && shotLog[i].statKey === a.key) return i;
+    }
+    return -1;
   };
+
+  const deleteActionAt = (i) => {
+    const a = actionHistory[i];
+    if (!a) return;
+    setStats(prev => adjustStat(prev, a.playerId, a.key, -1));
+    if (a.loggedShot) {
+      const idx = findShotIdx(a);
+      if (idx >= 0) setShotLog(prev => prev.filter((_, j) => j !== idx));
+    }
+    setActionHistory(prev => prev.filter((_, j) => j !== i));
+  };
+
+  const undoLastAction = () => {
+    if (actionHistory.length === 0) return;
+    deleteActionAt(actionHistory.length - 1);
+  };
+
+  const openEdit = (i) => {
+    const a = actionHistory[i];
+    if (!a) return;
+    setEditingIdx(i);
+    setEditPlayerId(a.playerId);
+    setEditKey(a.key);
+  };
+  const closeEdit = () => { setEditingIdx(null); setEditPlayerId(null); setEditKey(null); };
+
+  const saveEdit = () => {
+    const i = editingIdx;
+    const a = actionHistory[i];
+    if (!a || !editPlayerId || !editKey) { closeEdit(); return; }
+    if (a.playerId === editPlayerId && a.key === editKey) { closeEdit(); return; }
+    setStats(prev => adjustStat(adjustStat(prev, a.playerId, a.key, -1), editPlayerId, editKey, 1));
+    if (a.loggedShot) {
+      const idx = findShotIdx(a);
+      if (idx >= 0) {
+        setShotLog(prev => prev.map((s, j) => j === idx ? { ...s, playerId: editPlayerId, statKey: editKey, make: editKey.endsWith('M') } : s));
+      }
+    }
+    setActionHistory(prev => prev.map((x, j) => j === i ? { ...x, playerId: editPlayerId, key: editKey } : x));
+    closeEdit();
+  };
+
+  const deleteFromEdit = () => {
+    deleteActionAt(editingIdx);
+    closeEdit();
+  };
+
+  // Timeouts
+  const toUsed = (side) => timeoutLog.filter(t => t.team === side).length;
+  const callTimeout = (side) => {
+    setTimeoutLog(prev => [...prev, { team: side, period: currentPeriod, min: clockMinutes, sec: clockSeconds }]);
+  };
+  const undoTimeout = () => setTimeoutLog(prev => prev.slice(0, -1));
 
   const ourScore = players.reduce((s,p) => s+calcPts(statsFor(p.id)), 0);
   const oppScore = calcPts(statsFor('OPP'));
@@ -392,19 +459,19 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     autoSaveTimer.current = setTimeout(() => {
       supabase.from('games').update({
         player_stats: stats, shot_log: shotLog,
-        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
         game_format: gameFormat, updated_at: new Date().toISOString(),
       }).eq('id', game.id).then(({ error }) => { if (error) console.error('Auto-save failed:', error.message); });
     }, 800);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory]);
+  }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory, timeoutLog, toAllot]);
 
-  useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [actionHistory]);
+  useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [actionHistory, logExpanded]);
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
       game_format: gameFormat, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) onSaved(); else alert('Error saving: ' + error.message);
@@ -413,7 +480,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory },
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
       game_format: gameFormat, is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowReport(true); } else alert('Error saving: ' + error.message);
@@ -475,6 +542,32 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const oppAbbr = opponent?.abbr || oppDisplayName.slice(0,4).toUpperCase();
   const courtPlayers = players.filter(p => onCourt.includes(p.id));
 
+  const labelForPlayer = (pid) => {
+    if (pid === 'OPP') return oppAbbr;
+    const p = players.find(pl => pl.id === pid);
+    return p ? `#${p.number||'—'} ${(p.name||'').split(' ')[0]}` : '#?';
+  };
+
+  const editingAction = editingIdx != null ? actionHistory[editingIdx] : null;
+  const lastTimeout = timeoutLog.length > 0 ? timeoutLog[timeoutLog.length - 1] : null;
+
+  const renderTimeoutBtn = (side, abbrLabel) => {
+    const used = toUsed(side);
+    const left = toAllot - used;
+    const over = left < 0;
+    const dotCount = Math.max(toAllot, used);
+    return (
+      <button onClick={() => callTimeout(side)} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, cursor: 'pointer', textAlign: 'center', background: over ? COLORS.redBg : 'rgba(255,255,255,0.07)', border: `2px solid ${over ? COLORS.red : COLORS.gold}`, color: '#ffffff', fontWeight: 800 }}>
+        <div style={{ fontSize: 11, letterSpacing: 0.5, lineHeight: 1.1 }}>⏱ {abbrLabel} TIMEOUT · {over ? 'OVER' : `${left} left`}</div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 4 }}>
+          {Array.from({ length: dotCount }).map((_, i) => (
+            <span key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < left ? COLORS.gold : (i >= toAllot ? COLORS.red : 'rgba(255,255,255,0.18)'), border: '1px solid rgba(255,255,255,0.4)' }} />
+          ))}
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div>
       <WorldCupScoreboard
@@ -493,6 +586,23 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         isFinal={false}
         useFullName={false}
       />
+
+      {/* Timeouts */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+          {renderTimeoutBtn('us', ourAbbr.slice(0,4))}
+          <select value={toAllot} onChange={e => setToAllot(Number(e.target.value))} title="Timeouts per team" style={{ width: 44, padding: '0 2px', background: COLORS.navyDark, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 14, fontWeight: 800, textAlign: 'center' }}>
+            {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          {renderTimeoutBtn('opp', oppAbbr.slice(0,4))}
+        </div>
+        {lastTimeout && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, fontSize: 11, color: COLORS.muted }}>
+            <span>Last: <span style={{ color: COLORS.text, fontWeight: 700 }}>{lastTimeout.team==='us' ? ourAbbr.slice(0,4) : oppAbbr.slice(0,4)}</span> · {gameFormat.periodLabel}{lastTimeout.period} · {lastTimeout.min}:{String(lastTimeout.sec).padStart(2,'0')}</span>
+            <button onClick={undoTimeout} style={{ padding: '2px 8px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.gold, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>↩ Undo timeout</button>
+          </div>
+        )}
+      </div>
 
       {editingClock && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
@@ -553,20 +663,67 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
       {onBack && <button onClick={onBack} style={{ marginBottom: 8, padding: '4px 10px', fontSize: 11, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.muted, borderRadius: 6, cursor: 'pointer' }}>← {backLabel || 'Back'}</button>}
 
+      {/* Play log — tap any entry to edit or delete it */}
       {actionHistory.length > 0 && (
-        <div ref={playLogRef} style={{ height: 30, overflowY: 'auto', marginBottom: 10, borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 6px' }}>
-          {actionHistory.map((a, i) => {
-            const def = STAT_DEFS.find(d => d.key===a.key);
-            const p = players.find(pl => pl.id===a.playerId);
-            const label = a.playerId==='OPP' ? oppAbbr : (p ? `#${p.number||'—'} ${(p.name||'').split(' ')[0]}` : '#?');
-            const isGreen = def ? def.value>=0 : true;
-            const isLast = i===actionHistory.length-1;
-            return (
-              <div key={`${a.playerId}-${a.key}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 2px', fontSize: 10, fontWeight: isLast?800:600, color: isGreen?COLORS.statPosText:COLORS.statNegText, background: isLast?(isGreen?COLORS.statPosBg:COLORS.statNegBg):'transparent' }}>
-                <span>{label}</span><span>{def?def.label:a.key}</span>
-              </div>
-            );
-          })}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+            <span style={{ fontSize: 10, color: COLORS.muted, fontWeight: 700 }}>PLAY LOG · {actionHistory.length} tags · tap one to edit</span>
+            <button onClick={() => setLogExpanded(v => !v)} style={{ padding: '2px 8px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.gold, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>{logExpanded ? '▼ Collapse' : '▲ Expand'}</button>
+          </div>
+          <div ref={playLogRef} style={{ height: logExpanded ? 240 : 52, overflowY: 'auto', borderRadius: 6, background: 'rgba(255,255,255,0.04)', border: `1px solid ${COLORS.border}`, padding: '2px 4px' }}>
+            {actionHistory.map((a, i) => {
+              const def = STAT_DEFS.find(d => d.key===a.key);
+              const label = labelForPlayer(a.playerId);
+              const isGreen = def ? def.value>=0 : true;
+              const isLast = i===actionHistory.length-1;
+              return (
+                <div key={`${a.sid||a.playerId}-${a.key}-${i}`} onClick={() => openEdit(i)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: logExpanded ? '7px 6px' : '2px 4px', marginBottom: logExpanded ? 2 : 0, borderRadius: 5, cursor: 'pointer', fontSize: logExpanded ? 12 : 11, fontWeight: isLast?800:600, color: isGreen?COLORS.statPosText:COLORS.statNegText, background: isLast?(isGreen?COLORS.statPosBg:COLORS.statNegBg):'rgba(255,255,255,0.03)' }}>
+                  <span><span style={{ color: COLORS.muted, marginRight: 6 }}>{i+1}.</span>{label}</span>
+                  <span>{def?def.label:a.key}{a.loggedShot ? ' 📍' : ''} ✎</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Edit tag window */}
+      {editingAction && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 120, padding: 12 }}>
+          <div style={{ background: COLORS.navyMid, color: COLORS.text, border: `2px solid ${COLORS.gold}`, borderRadius: 12, padding: 16, width: '100%', maxWidth: 360, maxHeight: '88vh', overflowY: 'auto' }}>
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2, color: COLORS.gold }}>Edit Tag #{editingIdx+1}</div>
+            <div style={{ fontSize: 12, color: COLORS.muted, marginBottom: 12 }}>
+              Currently: {labelForPlayer(editingAction.playerId)} — {(STAT_DEFS.find(d=>d.key===editingAction.key)||{}).label || editingAction.key}
+              {editingAction.loggedShot ? ' (shot location stays the same)' : ''}
+            </div>
+
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Player</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {players.map(p => {
+                const sel = editPlayerId === p.id;
+                return <button key={p.id} onClick={() => setEditPlayerId(p.id)} style={{ padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: sel ? `2px solid ${COLORS.gold}` : `1px solid ${COLORS.border}`, background: sel ? COLORS.goldLight : COLORS.navyDark, color: sel ? COLORS.gold : COLORS.text }}>#{p.number||'—'} {(p.name||'').split(' ')[0]}</button>;
+              })}
+              <button onClick={() => setEditPlayerId('OPP')} style={{ padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: editPlayerId==='OPP' ? `2px solid ${COLORS.gold}` : `1px solid ${COLORS.border}`, background: editPlayerId==='OPP' ? COLORS.goldLight : COLORS.navyDark, color: editPlayerId==='OPP' ? COLORS.gold : COLORS.text }}>{oppAbbr}</button>
+            </div>
+
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Stat</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginBottom: 16 }}>
+              {STAT_DEFS.filter(d => editingAction.loggedShot ? SHOT_KEYS.includes(d.key) : !SHOT_KEYS.includes(d.key)).map(d => {
+                const sel = editKey === d.key;
+                const pos = d.value >= 0;
+                return (
+                  <button key={d.key} onClick={() => setEditKey(d.key)} style={{ padding: '8px 2px', borderRadius: 7, cursor: 'pointer', textAlign: 'center', fontWeight: 800, fontSize: 12, color: '#fff', background: pos ? COLORS.statPosBg : COLORS.statNegBg, border: sel ? `3px solid ${COLORS.gold}` : `2px solid ${pos ? COLORS.statPosBorder : COLORS.statNegBorder}`, opacity: sel ? 1 : 0.8 }}>
+                    {d.abbr || d.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button onClick={saveEdit} style={{ width: '100%', padding: 12, background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 14, cursor: 'pointer', marginBottom: 8 }}>Save Change</button>
+            <button onClick={deleteFromEdit} style={{ width: '100%', padding: 10, background: COLORS.redBg, color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>🗑 Delete This Tag</button>
+            <button onClick={closeEdit} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -691,7 +848,8 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           </div>
           <div id="final-report-printable">
             <h2 style={{ marginBottom: 4 }}>Final: {ourScore} - {oppScore}</h2>
-            <div style={{ color: COLORS.muted, marginBottom: 16 }}>vs. {opponent?.name||game.meta?.opponentName||'—'} · {game.meta?.date||''}</div>
+            <div style={{ color: COLORS.muted, marginBottom: 6 }}>vs. {opponent?.name||game.meta?.opponentName||'—'} · {game.meta?.date||''}</div>
+            <div style={{ color: COLORS.muted, marginBottom: 16, fontSize: 13 }}>Timeouts used: {ourAbbr.slice(0,4)} {toUsed('us')} · {oppAbbr.slice(0,4)} {toUsed('opp')}</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
               <thead><tr style={{ background: COLORS.navy, color: COLORS.text }}><th style={{ padding: 6, textAlign: 'left' }}>Player</th><th style={{ padding: 6 }}>MIN</th><th style={{ padding: 6 }}>PTS</th><th style={{ padding: 6 }}>EFF</th></tr></thead>
               <tbody>{players.map(p => (<tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}><td style={{ padding: 6 }}>#{p.number||'—'} {p.name}</td><td style={{ padding: 6, textAlign: 'center' }}>{fmtMin(liveMinutesFor(p.id))}</td><td style={{ padding: 6, textAlign: 'center' }}>{calcPts(statsFor(p.id))}</td><td style={{ padding: 6, textAlign: 'center', fontWeight: 700, color: calcEff(statsFor(p.id))>=0?COLORS.green:COLORS.red }}>{calcEff(statsFor(p.id))>=0?'+':''}{calcEff(statsFor(p.id))}</td></tr>))}</tbody>
