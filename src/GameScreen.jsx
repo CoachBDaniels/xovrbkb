@@ -572,6 +572,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const editingAction = editingIdx != null ? actionHistory[editingIdx] : null;
   const lastTimeout = timeoutLog.length > 0 ? timeoutLog[timeoutLog.length - 1] : null;
 
+  // Small round foul-count badge (number only)
+  const foulCircle = (pf) => {
+    const fc = foulBadgeColors(pf);
+    return (
+      <span style={{ background: fc.bg, color: fc.fg, fontSize: 9, fontWeight: 900, lineHeight: 1, width: 14, height: 14, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(0,0,0,0.4)', flexShrink: 0 }}>{pf}</span>
+    );
+  };
+
   const renderTimeoutBtn = (side, abbrLabel) => {
     const used = toUsed(side);
     const left = toAllot - used;
@@ -675,14 +683,11 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             const sel = selectedPlayer === p.id;
             const eff = calcEff(statsFor(p.id));
             const pf = foulsFor(p.id);
-            const fc = foulBadgeColors(pf);
             return (
-              <button key={p.id} onClick={() => setSelectedPlayer(sel ? null : p.id)} style={{ position: 'relative', padding: '6px 3px', borderRadius: 7, border: sel ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: sel ? COLORS.goldLight : COLORS.playerBtnBg, color: sel ? COLORS.textDark : COLORS.playerBtnText, cursor: 'pointer', textAlign: 'center', flexShrink: 0 }}>
-                {pf > 0 && (
-                  <span style={{ position: 'absolute', top: -5, right: -4, background: fc.bg, color: fc.fg, fontSize: 9, fontWeight: 900, lineHeight: 1, padding: '3px 5px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.5)', zIndex: 2 }}>PF {pf}</span>
-                )}
+              <button key={p.id} onClick={() => setSelectedPlayer(sel ? null : p.id)} style={{ padding: '6px 3px', borderRadius: 7, border: sel ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: sel ? COLORS.goldLight : COLORS.playerBtnBg, color: sel ? COLORS.textDark : COLORS.playerBtnText, cursor: 'pointer', textAlign: 'center', flexShrink: 0 }}>
                 <div style={{ fontSize: 11, fontWeight: 900, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{p.number||'—'} {(p.name||'').split(' ')[0]}</div>
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 4, marginTop: 2 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  {pf > 0 && foulCircle(pf)}
                   <span style={{ fontSize: 9, fontWeight: 700, color: sel ? COLORS.textDark : (eff>=0?COLORS.green:COLORS.red) }}>{eff>=0?'+':''}{eff}</span>
                   <span style={{ fontSize: 8, color: sel ? COLORS.textDark : COLORS.muted }}>{fmtMin(liveMinutesFor(p.id))}</span>
                 </div>
@@ -694,9 +699,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
           <MiniCourtTappable courtColor={court} laneColor={lane} onTap={handleCourtTap} pendingShot={pendingShot} onConfirmShot={confirmShot} onCancelShot={() => setPendingShot(null)} COLORS={COLORS} />
         </div>
         <div style={{ width: 78, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <button onClick={() => setSelectedPlayer('OPP')} style={{ position: 'relative', width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer==='OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer==='OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer==='OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10 }}>
-            {foulsFor('OPP') > 0 && <span style={{ position: 'absolute', top: -5, right: -4, background: 'rgba(255,255,255,0.25)', color: '#ffffff', fontSize: 9, fontWeight: 900, lineHeight: 1, padding: '3px 5px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.5)' }}>PF {foulsFor('OPP')}</span>}
-            {oppAbbr}
+          <button onClick={() => setSelectedPlayer('OPP')} style={{ width: '100%', padding: '8px 4px', borderRadius: 7, border: selectedPlayer==='OPP' ? `2px solid ${COLORS.gold}` : '1px solid #ccc', background: selectedPlayer==='OPP' ? COLORS.gold : COLORS.navyMid, color: selectedPlayer==='OPP' ? COLORS.textDark : COLORS.text, cursor: 'pointer', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span>{oppAbbr}</span>
+            {foulsFor('OPP') > 0 && foulCircle(foulsFor('OPP'))}
           </button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
           <button onClick={() => setShowLiveBoxScore(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
