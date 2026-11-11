@@ -329,6 +329,9 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   // Timeouts
   const [timeoutLog, setTimeoutLog] = useState(game.meta?.timeoutLog || []);
   const [toAllot, setToAllot] = useState(game.meta?.toAllot || 5);
+  // Team fouls: bonus (2 shots) starts on this foul number; reset by quarter/half/game
+  const [foulBonusAt, setFoulBonusAt] = useState(game.meta?.foulBonusAt || 5);
+  const [foulReset, setFoulReset] = useState(game.meta?.foulReset || 'quarter');
   // Foul pop-up
   const [foulToast, setFoulToast] = useState(null);
   // Play log editing
@@ -370,6 +373,18 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const statsFor = (id) => stats[id] || emptyPlayerStats();
   const foulsFor = (id) => (stats[id] && stats[id].PF) || 0;
 
+  // Which foul-count group a period belongs to (depends on reset setting)
+  const foulGroup = (p) => {
+    if (foulReset === 'game') return 1;
+    if (foulReset === 'half') {
+      if (p > gameFormat.periods) return 100 + p; // each overtime is its own group
+      return p <= gameFormat.periods / 2 ? 1 : 2;
+    }
+    return p; // quarter
+  };
+  // Team fouls in the current group for 'us' or 'opp', computed from the play log
+  const teamFouls = (side) => actionHistory.filter(a => a.key === 'PF' && (a.playerId === 'OPP' ? 'opp' : 'us') === side && foulGroup(a.period || 1) === foulGroup(currentPeriod)).length;
+
   // Returns a new stats object with one stat for one player adjusted by delta
   const adjustStat = (statsObj, pid, key, delta) => {
     const cur = statsObj[pid] || emptyPlayerStats();
@@ -378,13 +393,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const commitStatOnly = (playerId, key, loggedShot, sid) => {
     setStats(prev => adjustStat(prev, playerId, key, 1));
-    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, sid: sid || null, period: currentPeriod }]);
+    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, sid: sid || null, period: currentPeriod }];
   };
 
   const tagStat = (playerId, key) => {
     if (!playerId) return;
     if (key === 'PF') {
-      setFoulToast({ pid: playerId, count: foulsFor(playerId) + 1, t: Date.now() });
+      const side = playerId === 'OPP' ? 'opp' : 'us';
+      setFoulToast({ pid: playerId, count: foulsFor(playerId) + 1, team: teamFouls(side) + 1, t: Date.now() });
     }
     commitStatOnly(playerId, key, false);
     setSelectedPlayer(null);
@@ -480,19 +496,19 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     autoSaveTimer.current = setTimeout(() => {
       supabase.from('games').update({
         player_stats: stats, shot_log: shotLog,
-        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
+        meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot, foulBonusAt, foulReset },
         game_format: gameFormat, updated_at: new Date().toISOString(),
       }).eq('id', game.id).then(({ error }) => { if (error) console.error('Auto-save failed:', error.message); });
     }, 800);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
-  }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory, timeoutLog, toAllot]);
+  }, [stats, shotLog, onCourt, checkInClock, minutesLog, currentPeriod, clockMinutes, clockSeconds, gameFormat, actionHistory, timeoutLog, toAllot, foulBonusAt, foulReset]);
 
   useEffect(() => { if (playLogRef.current) playLogRef.current.scrollTop = playLogRef.current.scrollHeight; }, [actionHistory, logExpanded]);
 
   const saveGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot, foulBonusAt, foulReset },
       game_format: gameFormat, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) onSaved(); else alert('Error saving: ' + error.message);
@@ -501,7 +517,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const endGame = async () => {
     const { error } = await supabase.from('games').update({
       player_stats: stats, shot_log: shotLog,
-      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot },
+      meta: { ...game.meta, ourScore: String(ourScore), theirScore: String(oppScore), currentPeriod, clockMinutes, clockSeconds, onCourt, checkInClock, minutesLog, actionHistory, timeoutLog, toAllot, foulBonusAt, foulReset },
       game_format: gameFormat, is_final: true, updated_at: new Date().toISOString(),
     }).eq('id', game.id);
     if (!error) { setConfirmingEnd(false); setShowReport(true); } else alert('Error saving: ' + error.message);
@@ -597,6 +613,26 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     );
   };
 
+  // Team foul box: big number, dots, and bonus status
+  const renderTeamFoulBox = (side, abbrLabel) => {
+    const n = teamFouls(side);
+    const inBonus = n >= foulBonusAt;
+    const oneAway = n === foulBonusAt - 1;
+    const color = inBonus ? '#dc2626' : oneAway ? '#f97316' : COLORS.gold;
+    const dotCount = Math.max(foulBonusAt, n);
+    return (
+      <div style={{ flex: 1, padding: '5px 4px', borderRadius: 8, textAlign: 'center', background: inBonus ? COLORS.redBg : 'rgba(255,255,255,0.07)', border: `2px solid ${color}`, color: '#ffffff', fontWeight: 800 }}>
+        <div style={{ fontSize: 11, letterSpacing: 0.5, lineHeight: 1.1 }}>{abbrLabel} FOULS · <span style={{ fontSize: 15, fontWeight: 900 }}>{n}</span></div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 3, marginTop: 4 }}>
+          {Array.from({ length: dotCount }).map((_, i) => (
+            <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i < n ? (i >= foulBonusAt - 1 ? '#dc2626' : (oneAway || inBonus ? '#f97316' : COLORS.gold)) : 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.4)' }} />
+          ))}
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 900, marginTop: 3, minHeight: 12, color: inBonus ? '#f87171' : '#fb923c' }}>{inBonus ? 'BONUS · 2 SHOTS' : oneAway ? '1 TO BONUS' : ''}</div>
+      </div>
+    );
+  };
+
   return (
     <div>
       {/* Foul pop-up */}
@@ -605,11 +641,13 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         const isOpp = foulToast.pid === 'OPP';
         const out = !isOpp && foulToast.count >= FOUL_OUT;
         const warn = !isOpp && foulToast.count === FOUL_OUT - 1;
+        const teamBonus = foulToast.team >= foulBonusAt;
         return (
           <div style={{ position: 'fixed', top: 12, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 130, pointerEvents: 'none' }}>
             <div style={{ background: 'rgba(10,20,40,0.97)', border: `3px solid ${c.bg === 'rgba(255,255,255,0.25)' ? COLORS.gold : c.bg}`, borderRadius: 12, padding: '10px 18px', textAlign: 'center', boxShadow: '0 6px 24px rgba(0,0,0,0.6)' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#ffffff' }}>{labelForPlayer(foulToast.pid)} · PF {foulToast.count}</div>
               {(out || warn) && <div style={{ fontSize: 12, fontWeight: 900, color: out ? '#f87171' : '#fb923c', marginTop: 2 }}>{out ? 'FOULED OUT' : '1 more = out'}</div>}
+              <div style={{ fontSize: 12, fontWeight: 800, color: teamBonus ? '#f87171' : '#cbd5e1', marginTop: 2 }}>Team fouls: {foulToast.team}{teamBonus ? ' · BONUS' : ''}</div>
             </div>
           </div>
         );
@@ -647,6 +685,22 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             <button onClick={undoTimeout} style={{ padding: '2px 8px', background: 'none', border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.gold, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>↩ Undo timeout</button>
           </div>
         )}
+      </div>
+
+      {/* Team fouls */}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'stretch', marginBottom: 8 }}>
+        {renderTeamFoulBox('us', ourAbbr.slice(0,4))}
+        <div style={{ width: 44, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <select value={foulBonusAt} onChange={e => setFoulBonusAt(Number(e.target.value))} title="Bonus (2 shots) starts on this team foul" style={{ flex: 1, width: '100%', padding: '0 2px', background: COLORS.navyDark, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontWeight: 800, textAlign: 'center' }}>
+            {[3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={foulReset} onChange={e => setFoulReset(e.target.value)} title="Team fouls reset: Quarter, Half, or Game" style={{ flex: 1, width: '100%', padding: '0 2px', background: COLORS.navyDark, color: COLORS.gold, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 13, fontWeight: 800, textAlign: 'center' }}>
+            <option value="quarter">Q</option>
+            <option value="half">H</option>
+            <option value="game">G</option>
+          </select>
+        </div>
+        {renderTeamFoulBox('opp', oppAbbr.slice(0,4))}
       </div>
 
       {editingClock && (
