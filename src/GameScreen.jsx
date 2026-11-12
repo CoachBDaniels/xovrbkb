@@ -322,6 +322,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLiveBoxScore, setShowLiveBoxScore] = useState(false);
+  const [boxView, setBoxView] = useState('game');
   const [showShotChart, setShowShotChart] = useState(false);
   const [specialPicker, setSpecialPicker] = useState(null);
   const [actionHistory, setActionHistory] = useState(game.meta?.actionHistory || []);
@@ -390,6 +391,23 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     const cur = statsObj[pid] || emptyPlayerStats();
     return { ...statsObj, [pid]: { ...cur, [key]: Math.max(0, (cur[key] || 0) + delta) } };
   };
+
+  // Box score views: 'game', 'h1', 'h2', or 'pN' for a single period
+  const periodInView = (p, view) => {
+    if (view === 'game') return true;
+    if (view === 'h1') return p <= gameFormat.periods / 2;
+    if (view === 'h2') return p > gameFormat.periods / 2;
+    return p === Number(view.slice(1));
+  };
+  const viewStats = (view) => {
+    if (view === 'game') return stats;
+    let s = {};
+    actionHistory.forEach(a => {
+      if (periodInView(a.period || 1, view)) s = adjustStat(s, a.playerId, a.key, 1);
+    });
+    return s;
+  };
+  const viewShotLog = (view) => view === 'game' ? shotLog : shotLog.filter(sh => periodInView(sh.period || 1, view));
 
   const commitStatOnly = (playerId, key, loggedShot, sid) => {
     setStats(prev => adjustStat(prev, playerId, key, 1));
@@ -588,6 +606,16 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
   const editingAction = editingIdx != null ? actionHistory[editingIdx] : null;
   const lastTimeout = timeoutLog.length > 0 ? timeoutLog[timeoutLog.length - 1] : null;
 
+  // Box score view options
+  const boxViewOptions = [{ key: 'game', label: 'Game' }];
+  if (gameFormat.periods % 2 === 0) {
+    boxViewOptions.push({ key: 'h1', label: '1st Half' });
+    boxViewOptions.push({ key: 'h2', label: '2nd Half' });
+  }
+  for (let p = 1; p <= Math.max(currentPeriod, gameFormat.periods); p++) {
+    boxViewOptions.push({ key: 'p' + p, label: p > gameFormat.periods ? (p - gameFormat.periods > 1 ? 'OT' + (p - gameFormat.periods) : 'OT') : (gameFormat.periodLabel || 'Q').slice(0,1).toUpperCase() + p });
+  }
+
   // Small round foul-count badge (number only)
   const foulCircle = (pf) => {
     const fc = foulBadgeColors(pf);
@@ -758,7 +786,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             {foulsFor('OPP') > 0 && foulCircle(foulsFor('OPP'))}
           </button>
           <button onClick={openSubs} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🔄 Subs</button>
-          <button onClick={() => setShowLiveBoxScore(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
+          <button onClick={() => { setBoxView('game'); setShowLiveBoxScore(true); }} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>📊 Box</button>
           <button onClick={() => setShowShotChart(true)} style={{ padding: '8px 2px', background: 'rgba(255,255,255,0.07)', border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🎯 Shots</button>
           <button onClick={saveGame} style={{ padding: '8px 2px', background: 'rgba(200,168,75,0.1)', border: `1px solid ${COLORS.gold}`, borderRadius: 8, color: COLORS.gold, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>💾 Save</button>
           <button onClick={() => setConfirmingEnd(true)} style={{ padding: '8px 2px', background: COLORS.redBg, border: `1px solid ${COLORS.red}`, borderRadius: 8, color: COLORS.red, fontWeight: 700, fontSize: 9, cursor: 'pointer' }}>🏁 End</button>
@@ -941,7 +969,32 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
         </div>
       )}
 
-      {showLiveBoxScore && <BoxScoreReport team={team} teamName={teamName} logo={logo} opponent={opponent||{name:game.meta?.opponentName}} players={players} stats={stats} minutesLog={minutesLog} checkInClock={checkInClock} onCourt={onCourt} clockTotalSeconds={clockTotalSeconds} shotLog={shotLog} court={court} lane={lane} onClose={() => setShowLiveBoxScore(false)} />}
+      {showLiveBoxScore && (
+        <>
+          <BoxScoreReport
+            team={team} teamName={teamName} logo={logo}
+            opponent={opponent||{name:game.meta?.opponentName}}
+            players={players}
+            stats={viewStats(boxView)}
+            minutesLog={boxView === 'game' ? minutesLog : {}}
+            checkInClock={boxView === 'game' ? checkInClock : {}}
+            onCourt={boxView === 'game' ? onCourt : []}
+            clockTotalSeconds={clockTotalSeconds}
+            shotLog={viewShotLog(boxView)}
+            court={court} lane={lane}
+            onClose={() => setShowLiveBoxScore(false)}
+          />
+          {/* View picker pinned to the bottom of the box score */}
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 400, background: 'rgba(10,20,40,0.97)', borderTop: `2px solid ${COLORS.gold}`, padding: '8px 8px calc(8px + env(safe-area-inset-bottom))', display: 'flex', gap: 6, overflowX: 'auto' }}>
+            {boxViewOptions.map(o => {
+              const sel = boxView === o.key;
+              return (
+                <button key={o.key} onClick={() => setBoxView(o.key)} style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', background: sel ? COLORS.gold : COLORS.navyDark, color: sel ? COLORS.textDark : '#ffffff', border: `2px solid ${sel ? COLORS.gold : COLORS.border}` }}>{o.label}</button>
+              );
+            })}
+          </div>
+        </>
+      )}
       {showShotChart && <ShotChartView players={players} shotLog={shotLog} opponent={opponent||{name:game.meta?.opponentName}} court={court} lane={lane} onClose={() => setShowShotChart(false)} />}
 
       {showReport && (
