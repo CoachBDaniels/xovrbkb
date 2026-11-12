@@ -393,7 +393,7 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const commitStatOnly = (playerId, key, loggedShot, sid) => {
     setStats(prev => adjustStat(prev, playerId, key, 1));
-    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, sid: sid || null, period: currentPeriod }];
+    setActionHistory(prev => [...prev, { playerId, key, loggedShot: !!loggedShot, sid: sid || null, period: currentPeriod }]);
   };
 
   const tagStat = (playerId, key) => {
