@@ -575,6 +575,14 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
     setCurrentPeriod(p=>p+1); setClockMinutes(newMinutes); setClockSeconds(0);
     checkInLineup(onCourt||[], newMinutes*60); setEditingClock(false);
   };
+  // Jump directly to any period (including back to Q1)
+  const goToPeriod = (n) => {
+    if (n === currentPeriod) return;
+    bankMinutes(clockTotalSeconds);
+    const mins = n > gameFormat.periods ? gameFormat.otMinutes : gameFormat.minutes;
+    setCurrentPeriod(n); setClockMinutes(mins); setClockSeconds(0);
+    checkInLineup(onCourt||[], mins*60); setEditingClock(false);
+  };
   const liveMinutesFor = (pid) => {
     const banked = minutesLog[pid]||0;
     const startSec = checkInClock[pid];
@@ -605,6 +613,12 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
 
   const editingAction = editingIdx != null ? actionHistory[editingIdx] : null;
   const lastTimeout = timeoutLog.length > 0 ? timeoutLog[timeoutLog.length - 1] : null;
+
+  // Period jump buttons: all regulation periods, plus any overtimes reached
+  const periodJumpOptions = [];
+  for (let p = 1; p <= Math.max(currentPeriod, gameFormat.periods); p++) {
+    periodJumpOptions.push({ n: p, label: p > gameFormat.periods ? (p - gameFormat.periods > 1 ? 'OT' + (p - gameFormat.periods) : 'OT') : (gameFormat.periodLabel || 'Q').slice(0,1).toUpperCase() + p });
+  }
 
   // Box score view options
   const boxViewOptions = [{ key: 'game', label: 'Game' }];
@@ -742,6 +756,15 @@ export function ActiveGame({ team, game, onSaved, onBack, backLabel }) {
             </div>
             <button onClick={saveClockEdit} style={{ width: '100%', padding: 10, background: COLORS.gold, color: COLORS.textDark, border: 'none', borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>Save Clock Time</button>
             <button onClick={advancePeriod} style={{ width: '100%', padding: 10, background: COLORS.greenBg, color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>End {gameFormat.periodLabel} {currentPeriod} → Start {currentPeriod >= gameFormat.periods ? 'OT' : gameFormat.periodLabel+' '+(currentPeriod+1)}</button>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700, marginBottom: 6, textTransform: 'uppercase' }}>Jump to period</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {periodJumpOptions.map(o => {
+                const sel = o.n === currentPeriod;
+                return (
+                  <button key={o.n} onClick={() => goToPeriod(o.n)} style={{ flex: '1 1 40px', padding: '10px 4px', borderRadius: 8, fontWeight: 800, fontSize: 14, cursor: 'pointer', background: sel ? COLORS.gold : COLORS.navyDark, color: sel ? COLORS.textDark : COLORS.text, border: `2px solid ${sel ? COLORS.gold : COLORS.border}` }}>{o.label}</button>
+                );
+              })}
+            </div>
             <button onClick={() => { setDraftFormat(gameFormat); setEditingFormat(true); }} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.gold}`, color: COLORS.gold, borderRadius: 8, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>▼ Edit Game Format</button>
             <button onClick={() => setEditingClock(false)} style={{ width: '100%', padding: 10, background: 'none', border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
           </div>
@@ -1075,7 +1098,7 @@ export default function GameScreen({ team, season, prefill, onPrefillConsumed })
           <select value={formatKey} onChange={e => setFormatKey(e.target.value)} style={inputStyle}>
             {GAME_FORMAT_PRESETS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
           </select>
-          <button onClick={startGame} style={{ padding: '9px 18px', background: COLORS.gold, border: 'none', borderRadius: 7, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start Game →</button>
+          <button onClick={startGame} style={{ padding: '9px 18px', background: COLORS.gold, border: 'none', borderRadius: 8, color: COLORS.textDark, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Start Game →</button>
         </div>
       </div>
       <h4 style={{ color: COLORS.gold, marginBottom: 10, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 }}>Game Log</h4>
